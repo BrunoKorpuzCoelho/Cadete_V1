@@ -9,6 +9,7 @@ def create_admin():
             username="cubix",
             password="cubix",  
             name="Administrator",
+            type="Admin",
             write_date=datetime.now()
         )
         user.is_locked = False
@@ -24,6 +25,7 @@ def create_basic_user():
             username="user",
             password="user",  
             name="Basic User",
+            type="User",
             write_date=datetime.now()
         )
         user.is_locked = False

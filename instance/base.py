@@ -9,6 +9,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(25), unique=True)
     password = db.Column(db.String(255))  
     name = db.Column(db.String(100))  
+    type = db.Column(db.String(50), default="User")
     active = db.Column(db.Boolean, default=True)   
     is_locked = db.Column(db.Boolean, default=False)
     last_login = db.Column(db.DateTime)
@@ -16,9 +17,10 @@ class User(UserMixin, db.Model):
     create_date = db.Column(db.DateTime, default=db.func.current_timestamp())  
     write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    def __init__(self, username, password, name, write_date, active=True):
+    def __init__(self, username, password, name, write_date, active=True, user_type="user"):
         self.username = username
         self.password = password
         self.name = name
         self.write_date = write_date
-        self.active = active 
+        self.active = active
+        self.type = user_type

@@ -329,3 +329,28 @@ body {
     width: 100%;
   }
 }
+
+.logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #4b5563;
+    background: none;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.logout-btn:hover {
+    color: #111827;
+    background-color: #f3f4f6;
+}
+
+.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}

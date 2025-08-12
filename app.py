@@ -78,11 +78,13 @@ def logout():
 @app.route('/expenses')
 @login_required
 def expenses():
-    return render_template('expenses.html')
+    user_type = current_user.type
+    
+    return render_template( 'expenses.html',  user_type=user_type)
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         install_core()
     
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,8 +1,6 @@
-// Global state
 let transactions = []
 let nextId = 1
 
-// DOM elements
 const modal = document.getElementById("modal")
 const form = document.getElementById("transaction-form")
 const tbody = document.getElementById("transactions-tbody")
@@ -12,23 +10,28 @@ const ivaRateSelect = document.getElementById("iva-rate")
 const typeSelect = document.getElementById("type")
 const ivaValueSpan = document.getElementById("iva-value")
 const netValueSpan = document.getElementById("net-value")
+const ivaRateGroup = document.querySelector('.form-group:has(#iva-rate)') || ivaRateSelect.closest('.form-group')
+const userType = document.body.getAttribute('data-user-type') || 'user'
 
-// Initialize app
 document.addEventListener("DOMContentLoaded", () => {
   updateCalculatedValues()
   renderTransactions()
 
-  // Add event listeners
   grossValueInput.addEventListener("input", updateCalculatedValues)
   ivaRateSelect.addEventListener("change", updateCalculatedValues)
-  typeSelect.addEventListener("change", updateCalculatedValues)
+  
+  typeSelect.addEventListener("change", handleTypeChange)
+  
   form.addEventListener("submit", handleSubmit)
+  
+  updateIvaFieldVisibility()
 })
 
-// Modal functions
 function openModal() {
   modal.classList.add("show")
   document.body.style.overflow = "hidden"
+  
+  updateIvaFieldVisibility()
 }
 
 function closeModal() {
@@ -36,15 +39,38 @@ function closeModal() {
   document.body.style.overflow = "auto"
   form.reset()
   updateCalculatedValues()
+  updateIvaFieldVisibility()
+}
+
+function handleTypeChange() {
+  const type = typeSelect.value
+  
+  if (type === "despesa") {
+    ivaRateSelect.value = "0"
+  }
+  
+  updateIvaFieldVisibility()
+  
+  updateCalculatedValues()
+}
+
+function updateIvaFieldVisibility() {
+  const type = typeSelect.value
+  
+  if (!ivaRateGroup) return; // Safety check
+  
+  if (userType !== 'Admin' || type === "despesa") {
+    ivaRateGroup.style.display = 'none'
+  } else {
+    ivaRateGroup.style.display = 'block'
+  }
 }
 
 // Navigation
 function goBack() {
-  // In a real app, this would navigate back
-  alert("Voltar à página anterior")
+  window.history.back() || alert("Voltar à página anterior")
 }
 
-// Calculate IVA values
 function updateCalculatedValues() {
   const grossValue = Number.parseFloat(grossValueInput.value) || 0
   const ivaRate = Number.parseFloat(ivaRateSelect.value) || 0
@@ -53,7 +79,6 @@ function updateCalculatedValues() {
   let ivaValue = 0
   let netValue = grossValue
 
-  // Only calculate IVA for "ganho" (income)
   if (type === "ganho" && ivaRate > 0) {
     ivaValue = grossValue * (ivaRate / 100)
     netValue = grossValue - ivaValue
@@ -63,7 +88,6 @@ function updateCalculatedValues() {
   netValueSpan.textContent = formatCurrency(netValue)
 }
 
-// Format currency
 function formatCurrency(value) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -71,7 +95,10 @@ function formatCurrency(value) {
   }).format(value)
 }
 
-// Handle form submission
+function handleLogout() {
+  window.location.href = '/logout'
+}
+
 function handleSubmit(e) {
   e.preventDefault()
 
@@ -83,7 +110,6 @@ function handleSubmit(e) {
   let ivaValue = 0
   let netValue = grossValue
 
-  // Calculate IVA only for "ganho"
   if (type === "ganho" && ivaRate > 0) {
     ivaValue = grossValue * (ivaRate / 100)
     netValue = grossValue - ivaValue
@@ -143,7 +169,6 @@ function renderTransactions() {
     .join("")
 }
 
-// Delete transaction
 function deleteTransaction(id) {
   if (confirm("Tem certeza que deseja eliminar esta transação?")) {
     transactions = transactions.filter((t) => t.id !== id)
@@ -151,14 +176,12 @@ function deleteTransaction(id) {
   }
 }
 
-// Close modal when clicking outside
 modal.addEventListener("click", (e) => {
   if (e.target === modal) {
     closeModal()
   }
 })
 
-// Close modal with Escape key
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && modal.classList.contains("show")) {
     closeModal()
