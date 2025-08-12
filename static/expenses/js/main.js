@@ -10,6 +10,8 @@ const ivaRateSelect = document.getElementById("iva-rate")
 const typeSelect = document.getElementById("type")
 const ivaValueSpan = document.getElementById("iva-value")
 const netValueSpan = document.getElementById("net-value")
+const ivaValueInput = document.getElementById("iva-value-input")
+const netValueInput = document.getElementById("net-value-input")
 const ivaRateGroup = document.querySelector('.form-group:has(#iva-rate)') || ivaRateSelect.closest('.form-group')
 const userType = document.body.getAttribute('data-user-type') || 'user'
 
@@ -55,18 +57,21 @@ function handleTypeChange() {
 }
 
 function updateIvaFieldVisibility() {
-  const type = typeSelect.value
+  const type = typeSelect.value;
   
-  if (!ivaRateGroup) return; // Safety check
+  if (!ivaRateGroup) return; 
   
-  if (userType !== 'Admin' || type === "despesa") {
-    ivaRateGroup.style.display = 'none'
+  if (type === "despesa" && userType !== 'Admin') {
+    ivaRateGroup.style.display = 'none';
   } else {
-    ivaRateGroup.style.display = 'block'
+    ivaRateGroup.style.display = 'block';
+  }
+  
+  if (type === "despesa") {
+    ivaRateSelect.value = "0";
   }
 }
 
-// Navigation
 function goBack() {
   window.history.back() || alert("Voltar à página anterior")
 }
@@ -84,8 +89,13 @@ function updateCalculatedValues() {
     netValue = grossValue - ivaValue
   }
 
+  // Atualizar os spans visíveis
   ivaValueSpan.textContent = formatCurrency(ivaValue)
   netValueSpan.textContent = formatCurrency(netValue)
+  
+  // Atualizar os campos ocultos
+  ivaValueInput.value = ivaValue.toFixed(2)
+  netValueInput.value = netValue.toFixed(2)
 }
 
 function formatCurrency(value) {
@@ -100,11 +110,10 @@ function handleLogout() {
 }
 
 function handleSubmit(e) {
-  e.preventDefault()
-
-  const formData = new FormData(form)
-  const grossValue = Number.parseFloat(grossValueInput.value)
-  const ivaRate = Number.parseFloat(ivaRateSelect.value)
+  // Não prevenir o comportamento padrão, permitindo que o formulário seja enviado
+  // Mas garantir que os valores calculados estão atualizados nos campos ocultos
+  const grossValue = Number.parseFloat(grossValueInput.value) || 0
+  const ivaRate = Number.parseFloat(ivaRateSelect.value) || 0
   const type = typeSelect.value
 
   let ivaValue = 0
@@ -115,20 +124,23 @@ function handleSubmit(e) {
     netValue = grossValue - ivaValue
   }
 
-  const transaction = {
-    id: nextId++,
-    type: type,
-    description: document.getElementById("description").value,
-    grossValue: grossValue,
-    ivaRate: ivaRate,
-    ivaValue: ivaValue,
-    netValue: netValue,
-    date: new Date(),
-  }
+  // Atualizar os campos ocultos antes do envio
+  ivaValueInput.value = ivaValue.toFixed(2)
+  netValueInput.value = netValue.toFixed(2)
+  
+  // O formulário será enviado normalmente para o backend
+}
 
-  transactions.push(transaction)
-  renderTransactions()
-  closeModal()
+// Função para buscar as transações da API (a ser implementada)
+function fetchTransactions() {
+  // Implementação futura para buscar dados do backend
+  fetch('/api/expenses')
+    .then(response => response.json())
+    .then(data => {
+      transactions = data;
+      renderTransactions();
+    })
+    .catch(error => console.error('Erro ao buscar transações:', error));
 }
 
 // Render transactions table

@@ -24,3 +24,25 @@ class User(UserMixin, db.Model):
         self.write_date = write_date
         self.active = active
         self.type = user_type
+
+class Expenses(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transaction_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    gross_value = db.Column(db.Float, nullable=False)
+    iva_rate = db.Column(db.Float, nullable=False)
+    iva_value = db.Column(db.Float, nullable=False)
+    net_value = db.Column(db.Float, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user = db.relationship('User', backref=db.backref('expenses', lazy=True))
+    create_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    def __init__(self, transaction_type, description, gross_value, iva_rate, iva_value, net_value, user_id):
+        self.transaction_type = transaction_type
+        self.description = description
+        self.gross_value = gross_value
+        self.iva_rate = iva_rate
+        self.iva_value = iva_value
+        self.net_value = net_value
+        self.user_id = user_id

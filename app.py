@@ -5,6 +5,7 @@ import base64
 from extensions import db, login_manager
 from instance.install_core import install_core
 from datetime import datetime
+from instance.base import Expenses
 
 app = Flask(__name__)
 
@@ -81,6 +82,42 @@ def expenses():
     user_type = current_user.type
     
     return render_template( 'expenses.html',  user_type=user_type)
+
+@app.route('/add-expenses', methods=['POST'])
+@login_required
+def add_expense():
+    try:
+        transaction_type = request.form.get('transaction_type')
+        description = request.form.get('description')
+        gross_value = float(request.form.get('gross_value'))
+        iva_rate = float(request.form.get('iva_rate'))
+        iva_value = float(request.form.get('iva_value'))
+        net_value = float(request.form.get('net_value'))
+        
+        if not all([transaction_type, description, gross_value >= 0, iva_rate >= 0]):
+            flash('❌ Por favor, preencha todos os campos corretamente.', 'error')
+            return redirect(url_for('expenses'))
+        
+        new_expense = Expenses(
+            transaction_type=transaction_type,
+            description=description,
+            gross_value=gross_value,
+            iva_rate=iva_rate,
+            iva_value=iva_value,
+            net_value=net_value,
+            user_id=current_user.id
+        )
+        
+        db.session.add(new_expense)
+        db.session.commit()
+        
+        flash('✅ Transação adicionada com sucesso!', 'success')
+        return redirect(url_for('expenses'))
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'❌ Erro ao adicionar transação: {str(e)}', 'error')
+        return redirect(url_for('expenses'))
 
 if __name__ == '__main__':
     with app.app_context():

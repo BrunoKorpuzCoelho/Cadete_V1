@@ -13,8 +13,6 @@
                 <path d="m15 18-6-6 6-6"/>
             </svg>
         </button>
-        <h1>Transações</h1>
-        <div class="header-spacer"></div>
         <div class="header-content">
             <button class="logout-btn" onclick="handleLogout()">
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,12 +39,10 @@
                         </tr>
                     </thead>
                     <tbody id="transactions-tbody">
-                        <!-- Transactions will be inserted here -->
                     </tbody>
                 </table>
             </div>
             
-            <!-- Empty State -->
             <div id="empty-state" class="empty-state">
                 <div class="empty-icon">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -61,7 +57,6 @@
         </div>
     </main>
 
-    <!-- Floating Action Button -->
     <button class="fab" onclick="openModal()">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -69,7 +64,6 @@
         </svg>
     </button>
 
-    <!-- Modal -->
     <div id="modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -81,11 +75,11 @@
                     </svg>
                 </button>
             </div>
-            
-            <form id="transaction-form" class="modal-form">
+
+            <form id="transaction-form" class="modal-form" action="/add-expenses" method="POST">
                 <div class="form-group">
                     <label for="type">Tipo de Transação</label>
-                    <select id="type" required>
+                    <select name="transaction_type" id="type" required>
                         <option value="">Selecione o tipo</option>
                         <option value="ganho">Ganho</option>
                         <option value="despesa">Despesa</option>
@@ -94,17 +88,17 @@
 
                 <div class="form-group">
                     <label for="description">Descrição</label>
-                    <input type="text" id="description" placeholder="Descrição da transação" required>
+                    <input type="text" name="description" id="description" placeholder="Descrição da transação" required>
                 </div>
 
                 <div class="form-group">
                     <label for="gross-value">Valor Bruto (€)</label>
-                    <input type="number" id="gross-value" step="0.01" min="0" placeholder="0.00" required>
+                    <input type="number" name="gross_value" id="gross-value" step="0.01" min="0" placeholder="0.00" required>
                 </div>
 
                 <div class="form-group">
                     <label for="iva-rate">Taxa de IVA (%)</label>
-                    <select id="iva-rate">
+                    <select name="iva_rate" id="iva-rate">
                         <option value="0">0% (Isento)</option>
                         <option value="6">6% (Taxa reduzida)</option>
                         <option value="13">13% (Taxa intermédia)</option>
@@ -127,6 +121,8 @@
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancelar</button>
                     <button type="submit" class="btn-primary">Adicionar</button>
                 </div>
+                <input type="hidden" name="iva_value" id="iva-value-input">
+                <input type="hidden" name="net_value" id="net-value-input">
             </form>
         </div>
     </div>
