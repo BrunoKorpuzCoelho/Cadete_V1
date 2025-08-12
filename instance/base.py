@@ -17,13 +17,13 @@ class User(UserMixin, db.Model):
     create_date = db.Column(db.DateTime, default=db.func.current_timestamp())  
     write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    def __init__(self, username, password, name, write_date, active=True, user_type="user"):
+    def __init__(self, username, password, name, write_date, active=True, type="user"):
         self.username = username
         self.password = password
         self.name = name
         self.write_date = write_date
         self.active = active
-        self.type = user_type
+        self.user_type = type
 
 class Expenses(db.Model):
     id = db.Column(db.Integer, primary_key=True)
