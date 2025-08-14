@@ -3,6 +3,10 @@ function handleCardClick(cardType) {
     
     if (cardType === 'adicionar-transacao') {
         window.location.href = '/expenses';
+    } else if (cardType === 'configurar-orcamento') {
+        window.location.href = '/employee';
+    } else if (cardType === 'despesas-mensais') {
+        window.location.href = '/dashboard';  
     } else {
         alert(`Funcionalidade "${cardType}" será implementada em breve!`);
     }
