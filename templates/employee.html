@@ -35,12 +35,15 @@
                             <th>Nome</th>
                             <th>Cargo</th>
                             <th>Salário Mensal</th>
+                            <th>SS Empregado</th>
+                            <th>SS Empregador</th>
+                            <th>IRS</th>
+                            <th>Pagamento Extra</th>
                             <th>Ativo</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
                     <tbody id="employeesTableBody">
-                        <!-- Employees will be inserted here -->
                     </tbody>
                 </table>
             </div>
@@ -103,12 +106,35 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="employeeSocialSecurity">Taxa de Segurança Social (%) *</label>
+                            <label for="employeeSocialSecurity">Taxa de Segurança Social - Empregado (%) *</label>
                             <input type="number" id="employeeSocialSecurity" name="employeeSocialSecurity" placeholder="0.00" step="0.01" value="11.00" required>
                             <small class="input-help">Valor padrão: 11%</small>
                         </div>
+
+                        <div class="form-group">
+                            <label for="employerSocialSecurity">Taxa de Segurança Social - Empregador (%) *</label>
+                            <input type="number" id="employerSocialSecurity" name="employerSocialSecurity" placeholder="0.00" step="0.01" value="23.75" required>
+                            <small class="input-help">Valor padrão: 23.75%</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="employeeIRS">Taxa de IRS (%)</label>
+                            <input type="number" id="employeeIRS" name="employeeIRS" placeholder="0.00" step="0.01" value="0.00">
+                            <small class="input-help">Deixe 0 se não aplicável</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="extraPayment">Pagamento Extra (€)</label>
+                            <input type="number" id="extraPayment" name="extraPayment" placeholder="0.00" step="0.01" value="0.00">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="extraPaymentDescription">Descrição do Pagamento Extra</label>
+                            <input type="text" id="extraPaymentDescription" name="extraPaymentDescription" placeholder="Ex: Subsídio de alimentação">
+                        </div>
                         
                         <input type="hidden" id="employeeId" name="employeeId">
+                        <input type="hidden" id="companyIdInput" name="company_id" value="{{ company_id }}">
                     </div>
                     
                     <div class="modal-footer">

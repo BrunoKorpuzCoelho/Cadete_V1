@@ -79,25 +79,25 @@
 
             <div class="pagination">
                 {% if pagination.has_prev %}
-                    <a href="{{ url_for('expenses', page=pagination.prev_num) }}" class="pagination-btn">&laquo; Anterior</a>
+                    <a href="{{ url_for('expenses', company_id=company_id, page=pagination.prev_num) }}" class="pagination-btn">&laquo; Anterior</a>
                 {% else %}
                     <span class="pagination-btn disabled">&laquo; Anterior</span>
                 {% endif %}
-                
+
                 {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if page_num %}
                         {% if pagination.page == page_num %}
                             <span class="pagination-btn active">{{ page_num }}</span>
                         {% else %}
-                            <a href="{{ url_for('expenses', page=page_num) }}" class="pagination-btn">{{ page_num }}</a>
+                            <a href="{{ url_for('expenses', company_id=company_id, page=page_num) }}" class="pagination-btn">{{ page_num }}</a>
                         {% endif %}
                     {% else %}
                         <span class="pagination-ellipsis">…</span>
                     {% endif %}
                 {% endfor %}
-                
+
                 {% if pagination.has_next %}
-                    <a href="{{ url_for('expenses', page=pagination.next_num) }}" class="pagination-btn">Próximo &raquo;</a>
+                    <a href="{{ url_for('expenses', company_id=company_id, page=pagination.next_num) }}" class="pagination-btn">Próximo &raquo;</a>
                 {% else %}
                     <span class="pagination-btn disabled">Próximo &raquo;</span>
                 {% endif %}
@@ -181,6 +181,7 @@
                     <button type="button" class="btn-secondary" onclick="closeModal()">Cancelar</button>
                     <button type="submit" class="btn-primary">Adicionar</button>
                 </div>
+                <input type="hidden" name="company_id" value="{{ company_id }}">
                 <input type="hidden" name="iva_value" id="iva-value-input">
                 <input type="hidden" name="net_value" id="net-value-input">
                 <input type="hidden" name="expense_id" id="expense-id-input">

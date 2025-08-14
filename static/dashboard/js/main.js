@@ -1,12 +1,12 @@
 function handleCardClick(cardType) {
-    console.log(`Clicked on: ${cardType}`);
+    console.log(`Clicked on: ${cardType} for company: ${companyId}`);
     
     if (cardType === 'adicionar-transacao') {
-        window.location.href = '/expenses';
+        window.location.href = `/expenses/${companyId}`;
     } else if (cardType === 'configurar-orcamento') {
-        window.location.href = '/employee';
+        window.location.href = `/employee/${companyId}`;
     } else if (cardType === 'despesas-mensais') {
-        window.location.href = '/dashboard';  
+        window.location.href = `/dashboard/${companyId}`;  
     } else {
         alert(`Funcionalidade "${cardType}" será implementada em breve!`);
     }
@@ -27,3 +27,7 @@ document.querySelectorAll('.card').forEach(card => {
         }, 100);
     });
 });
+
+function goBack() {
+  window.location.href = '/company';
+}

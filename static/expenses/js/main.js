@@ -1,109 +1,212 @@
-const modal = document.getElementById("modal")
-const form = document.getElementById("transaction-form")
-const tbody = document.getElementById("transactions-tbody")
-const emptyState = document.getElementById("empty-state")
-const grossValueInput = document.getElementById("gross-value")
-const ivaRateSelect = document.getElementById("iva-rate")
-const typeSelect = document.getElementById("type")
-const ivaValueSpan = document.getElementById("iva-value")
-const netValueSpan = document.getElementById("net-value")
-const ivaValueInput = document.getElementById("iva-value-input")
-const netValueInput = document.getElementById("net-value-input")
-const ivaRateGroup = document.querySelector('.form-group:has(#iva-rate)') || ivaRateSelect.closest('.form-group')
-const userType = document.body.getAttribute('data-user-type') || 'user'
-
+let currentPage = 1
+const itemsPerPage = 100
+let employees = []
 let isEditing = false;
+
+function getCompanyId() {
+  const pathParts = window.location.pathname.split('/');
+  for (let i = 0; i < pathParts.length; i++) {
+    if (pathParts[i] === 'employee' && i + 1 < pathParts.length) {
+      return pathParts[i + 1];
+    }
+  }
+  return null;
+}
+
+const companyId = getCompanyId();
+
+const modalOverlay = document.getElementById("modalOverlay")
+const addEmployeeBtn = document.getElementById("addEmployeeBtn")
+const cancelBtn = document.getElementById("cancelBtn")
+const employeesTableBody = document.getElementById("employeesTableBody")
+const mobileCards = document.getElementById("mobileCards")
+const pagination = document.getElementById("pagination")
+const emptyState = document.getElementById("emptyState")
+const prevBtn = document.getElementById("prevBtn")
+const nextBtn = document.getElementById("nextBtn")
+const pageNumbers = document.getElementById("pageNumbers")
+const toast = document.getElementById("toast")
+const toastMessage = document.getElementById("toastMessage")
+
+const employeeForm = document.getElementById("employeeForm")
+const employeeName = document.getElementById("employeeName")
+const employeePosition = document.getElementById("employeePosition")
+const employeeSalary = document.getElementById("employeeSalary")
+const employeeSocialSecurity = document.getElementById("employeeSocialSecurity")
+const employerSocialSecurity = document.getElementById("employerSocialSecurity")
+const employeeIRS = document.getElementById("employeeIRS")
+const extraPayment = document.getElementById("extraPayment")
+const extraPaymentDescription = document.getElementById("extraPaymentDescription")
+const employeeId = document.getElementById("employeeId")
+const companyIdInput = document.getElementById("companyIdInput")
+const submitBtn = document.querySelector('.btn-primary');
 const modalTitle = document.querySelector('.modal-header h2');
-const submitButton = document.querySelector('.btn-primary');
 
-document.addEventListener("DOMContentLoaded", () => {
-  updateCalculatedValues()
-  renderTransactions() 
+addEmployeeBtn.addEventListener("click", openModal)
+cancelBtn.addEventListener("click", closeModal)
+prevBtn.addEventListener("click", previousPage)
+nextBtn.addEventListener("click", nextPage)
 
-  grossValueInput.addEventListener("input", updateCalculatedValues)
-  ivaRateSelect.addEventListener("change", updateCalculatedValues)
-  
-  typeSelect.addEventListener("change", handleTypeChange)
-  
-  form.addEventListener("submit", handleSubmit)
-  
-  updateIvaFieldVisibility()
+employeeForm.addEventListener("submit", function(e) {
+  e.preventDefault()
+  addEmployee()
 })
 
 function openModal() {
-  modal.classList.add("show")
-  document.body.style.overflow = "hidden"
+  modalOverlay.style.display = "flex"
+  clearForm()
   
-  updateIvaFieldVisibility()
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
 }
 
 function closeModal() {
-  modal.classList.remove("show")
-  document.body.style.overflow = "auto"
+  modalOverlay.style.display = "none"
+}
+
+function clearForm() {
+  employeeName.value = ""
+  employeePosition.value = ""
+  employeeSalary.value = ""
+  employeeSocialSecurity.value = "11.00"
+  employerSocialSecurity.value = "23.75"
+  employeeIRS.value = "0.00"
+  extraPayment.value = "0.00"
+  extraPaymentDescription.value = ""
+  employeeId.value = ""
+  
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
   
   isEditing = false;
-  if (modalTitle) modalTitle.textContent = 'Adicionar Transação';
-  if (submitButton) submitButton.textContent = 'Adicionar';
-  form.action = '/add-expenses';
-  
-  const expenseIdInput = document.getElementById('expense-id-input');
-  if (expenseIdInput) expenseIdInput.value = '';
-  
-  form.reset()
-  updateCalculatedValues()
-  updateIvaFieldVisibility()
+  submitBtn.textContent = "Adicionar";
+  modalTitle.textContent = "Adicionar Novo Empregado";
 }
 
-function handleTypeChange() {
-  const type = typeSelect.value
-  
-  if (type === "despesa") {
-    ivaRateSelect.value = "0"
+async function addEmployee() {
+  if (!employeeName.value || !employeePosition.value || !employeeSalary.value) {
+    showToast("Por favor, preencha todos os campos obrigatórios.", "error")
+    return
   }
-  
-  updateIvaFieldVisibility()
-  
-  updateCalculatedValues()
+
+  try {
+    const formData = new FormData(employeeForm)
+    
+    if (companyId && !formData.has('company_id')) {
+      formData.append('company_id', companyId);
+    }
+    
+    const url = isEditing 
+      ? `/update-employee/${employeeId.value}` 
+      : '/add-employee';
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      closeModal()
+      showToast(result.message)
+      await loadEmployees()
+    } else {
+      showToast(result.message, "error")
+    }
+  } catch (error) {
+    showToast("Erro ao processar a solicitação: " + error.message, "error")
+  }
 }
 
-function updateIvaFieldVisibility() {
-  const type = typeSelect.value;
-  
-  if (!ivaRateGroup) return; 
-  
-  if (type === "despesa" && userType !== 'Admin') {
-    ivaRateGroup.style.display = 'none';
-  } else {
-    ivaRateGroup.style.display = 'block';
-  }
-  
-  if (type === "despesa") {
-    ivaRateSelect.value = "0";
+async function deleteEmployee(id) {
+  if (confirm("Tem certeza que deseja remover este empregado?")) {
+    try {
+      const response = await fetch(`/delete-employee/${id}`, {
+        method: 'POST'
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        showToast("Empregado removido com sucesso.")
+        await loadEmployees()
+      } else {
+        showToast(result.message, "error")
+      }
+    } catch (error) {
+      showToast("Erro ao processar a solicitação: " + error.message, "error")
+    }
   }
 }
 
-function goBack() {
-  window.history.back()
+async function archiveEmployee(id, currentStatus) {
+  const action = currentStatus ? "arquivar" : "reativar";
+  const actionPast = currentStatus ? "arquivado" : "reativado";
+  
+  if (confirm(`Tem certeza que deseja ${action} este empregado?`)) {
+    try {
+      const formData = new FormData();
+      formData.append('is_active', !currentStatus);
+      
+      if (companyId) {
+        formData.append('company_id', companyId);
+      }
+      
+      const response = await fetch(`/toggle-employee-status/${id}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        showToast(`Empregado ${actionPast} com sucesso.`);
+        await loadEmployees();
+      } else {
+        showToast(result.message, "error");
+      }
+    } catch (error) {
+      showToast("Erro ao processar a solicitação: " + error.message, "error");
+    }
+  }
 }
 
-function updateCalculatedValues() {
-  const grossValue = Number.parseFloat(grossValueInput.value) || 0
-  const ivaRate = Number.parseFloat(ivaRateSelect.value) || 0
-  const type = typeSelect.value
-
-  let ivaValue = 0
-  let netValue = grossValue
-
-  if (type === "ganho" && ivaRate > 0) {
-    ivaValue = grossValue * (ivaRate / 100)
-    netValue = grossValue - ivaValue
+async function editEmployee(id) {
+  try {
+    const response = await fetch(`/get-employee/${id}`);
+    const result = await response.json();
+    
+    if (result.success) {
+      const employee = result.employee;
+      
+      employeeName.value = employee.name;
+      employeePosition.value = employee.position;
+      employeeSalary.value = employee.gross_salary;
+      employeeSocialSecurity.value = employee.social_security_rate;
+      employerSocialSecurity.value = employee.employer_social_security_rate || 23.75;
+      employeeIRS.value = employee.irs_rate || 0;
+      extraPayment.value = employee.extra_payment || 0;
+      extraPaymentDescription.value = employee.extra_payment_description || '';
+      employeeId.value = employee.id;
+      
+      if (companyIdInput) {
+        companyIdInput.value = employee.company_id || companyId;
+      }
+      
+      isEditing = true;
+      submitBtn.textContent = "Atualizar";
+      modalTitle.textContent = "Editar Empregado";
+      
+      modalOverlay.style.display = "flex";
+    } else {
+      showToast(result.message, "error");
+    }
+  } catch (error) {
+    showToast(`Erro ao carregar dados do empregado: ${error.message}`, "error");
   }
-
-  ivaValueSpan.textContent = formatCurrency(ivaValue)
-  netValueSpan.textContent = formatCurrency(netValue)
-  
-  ivaValueInput.value = ivaValue.toFixed(2)
-  netValueInput.value = netValue.toFixed(2)
 }
 
 function formatCurrency(value) {
@@ -113,150 +216,234 @@ function formatCurrency(value) {
   }).format(value)
 }
 
+function formatPercent(value) {
+  return value ? `${value}%` : '0%';
+}
+
+function renderEmployees() {
+  const totalPages = Math.ceil(employees.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentEmployees = employees.slice(startIndex, endIndex)
+
+  if (employees.length === 0) {
+    emptyState.style.display = "block"
+    pagination.style.display = "none"
+    employeesTableBody.innerHTML = ""
+    mobileCards.innerHTML = ""
+    return
+  } else {
+    emptyState.style.display = "none"
+  }
+
+  employeesTableBody.innerHTML = currentEmployees
+    .map(
+      (employee) => `
+        <tr class="${employee.is_active ? '' : 'inactive-row'}">
+            <td class="employee-name">${employee.name}</td>
+            <td class="employee-position">${employee.position}</td>
+            <td class="employee-salary">${formatCurrency(employee.gross_salary)}</td>
+            <td class="employee-ss">${formatPercent(employee.social_security_rate)}</td>
+            <td class="employer-ss">${formatPercent(employee.employer_social_security_rate)}</td>
+            <td class="employee-irs">${formatPercent(employee.irs_rate)}</td>
+            <td class="employee-extra">
+                ${employee.extra_payment ? formatCurrency(employee.extra_payment) : '-'}
+                ${employee.extra_payment_description ? `<small>(${employee.extra_payment_description})</small>` : ''}
+            </td>
+            <td class="employee-status">${employee.is_active ? 'Sim' : 'Não'}</td>
+            <td>
+                <div class="actions">
+                    <button class="action-btn edit-btn" onclick="editEmployee(${employee.id})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="action-btn archive-btn" onclick="archiveEmployee(${employee.id}, ${employee.is_active})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 8v13H3V8"></path>
+                            <path d="M1 3h22v5H1z"></path>
+                            <path d="M10 12h4"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete-btn" onclick="deleteEmployee(${employee.id})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m3 6 3 0 0 0"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            <line x1="10" x2="10" y1="11" y2="17"/>
+                            <line x1="14" x2="14" y1="11" y2="17"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `,
+    )
+    .join("")
+
+  mobileCards.innerHTML = currentEmployees
+    .map(
+      (employee) => `
+        <div class="employee-card ${employee.is_active ? '' : 'inactive-card'}">
+            <div class="card-content">
+                <div class="card-info">
+                    <div class="card-name">${employee.name}</div>
+                    <div class="card-position">${employee.position}</div>
+                    <div class="card-salary">${formatCurrency(employee.gross_salary)}</div>
+                    <div class="card-details">
+                        <div>SS Empregado: ${formatPercent(employee.social_security_rate)}</div>
+                        <div>SS Empregador: ${formatPercent(employee.employer_social_security_rate)}</div>
+                        <div>IRS: ${formatPercent(employee.irs_rate)}</div>
+                        <div>Extra: ${employee.extra_payment ? formatCurrency(employee.extra_payment) : '-'}</div>
+                        ${employee.extra_payment_description ? `<div class="card-extra-desc">${employee.extra_payment_description}</div>` : ''}
+                    </div>
+                    <div class="card-status">Ativo: ${employee.is_active ? 'Sim' : 'Não'}</div>
+                </div>
+                <div class="card-actions">
+                    <button class="action-btn edit-btn" onclick="editEmployee(${employee.id})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="action-btn archive-btn" onclick="archiveEmployee(${employee.id}, ${employee.is_active})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 8v13H3V8"></path>
+                            <path d="M1 3h22v5H1z"></path>
+                            <path d="M10 12h4"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete-btn" onclick="deleteEmployee(${employee.id})">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m3 6 3 0 0 0"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            <line x1="10" x2="10" y1="11" y2="17"/>
+                            <line x1="14" x2="14" y1="11" y2="17"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `,
+    )
+    .join("")
+
+  if (totalPages > 1) {
+    pagination.style.display = "flex"
+    renderPagination(totalPages)
+  } else {
+    pagination.style.display = "none"
+  }
+}
+
+function renderPagination(totalPages) {
+  prevBtn.disabled = currentPage === 1
+  nextBtn.disabled = currentPage === totalPages
+
+  let pagesToShow = [];
+  
+  pagesToShow.push(currentPage);
+  
+  if (currentPage > 1) {
+    pagesToShow.unshift(currentPage - 1);
+  }
+  
+  if (currentPage < totalPages) {
+    pagesToShow.push(currentPage + 1);
+  }
+  
+  pagesToShow = [...new Set(pagesToShow)].sort((a, b) => a - b);
+  
+  let paginationHTML = '';
+  
+  if (pagesToShow[0] > 1) {
+    paginationHTML += `
+      <button class="page-btn" onclick="goToPage(1)">1</button>
+      ${pagesToShow[0] > 2 ? '<span class="pagination-ellipsis">...</span>' : ''}
+    `;
+  }
+  
+  pagesToShow.forEach(page => {
+    paginationHTML += `
+      <button class="page-btn ${currentPage === page ? "active" : ""}" onclick="goToPage(${page})">
+        ${page}
+      </button>
+    `;
+  });
+  
+  if (pagesToShow[pagesToShow.length - 1] < totalPages) {
+    paginationHTML += `
+      ${pagesToShow[pagesToShow.length - 1] < totalPages - 1 ? '<span class="pagination-ellipsis">...</span>' : ''}
+      <button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>
+    `;
+  }
+  
+  pageNumbers.innerHTML = paginationHTML;
+}
+
+function previousPage() {
+  if (currentPage > 1) {
+    currentPage--
+    renderEmployees()
+  }
+}
+
+function nextPage() {
+  const totalPages = Math.ceil(employees.length / itemsPerPage)
+  if (currentPage < totalPages) {
+    currentPage++
+    renderEmployees()
+  }
+}
+
+function goToPage(page) {
+  currentPage = page
+  renderEmployees()
+}
+
+function showToast(message, type = "success") {
+  toastMessage.textContent = message
+  toast.className = `toast ${type}`
+  toast.style.display = "block"
+
+  setTimeout(() => {
+    toast.style.display = "none"
+  }, 3000)
+}
+
+async function loadEmployees() {
+  try {
+    const url = companyId ? `/get-employees/${companyId}` : '/get-employees';
+    const response = await fetch(url)
+    const data = await response.json()
+    
+    if (data.success) {
+      employees = data.employees
+      renderEmployees()
+    } else {
+      showToast("Erro ao carregar empregados: " + data.message, "error")
+    }
+  } catch (error) {
+    showToast("Erro ao comunicar com o servidor: " + error.message, "error")
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadEmployees()
+  
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
+})
+
+function goBack() {
+  if (companyId) {
+    window.location.href = `/main-menu/${companyId}`;
+  } else {
+    window.history.back();
+  }
+}
+
 function handleLogout() {
   window.location.href = '/logout'
 }
-
-function handleSubmit(e) {
-  const grossValue = Number.parseFloat(grossValueInput.value) || 0
-  const ivaRate = Number.parseFloat(ivaRateSelect.value) || 0
-  const type = typeSelect.value
-
-  let ivaValue = 0
-  let netValue = grossValue
-
-  if (type === "ganho" && ivaRate > 0) {
-    ivaValue = grossValue * (ivaRate / 100)
-    netValue = grossValue - ivaValue
-  }
-
-  ivaValueInput.value = ivaValue.toFixed(2)
-  netValueInput.value = netValue.toFixed(2)
-  
-  if (isEditing) {
-    const currentPage = new URLSearchParams(window.location.search).get('page');
-    if (currentPage) {
-      const separator = form.action.includes('?') ? '&' : '?';
-      form.action = `${form.action}${separator}page=${currentPage}`;
-    }
-  }
-}
-
-function renderTransactions() {
-  const tableRows = document.querySelectorAll("#transactions-tbody tr");
-  
-  if (tableRows.length === 0) {
-    emptyState.style.display = "block";
-  } else {
-    emptyState.style.display = "none";
-  }
-}
-
-function editTransaction(id) {
-  id = parseInt(id);
-  
-  if (isNaN(id)) {
-    console.error('ID inválido:', id);
-    alert("Erro: ID de transação inválido");
-    return;
-  }
-  
-  fetch(`/get-expense/${id}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        const expense = data.expense;
-        
-        const expenseIdInput = document.getElementById('expense-id-input');
-        if (expenseIdInput) expenseIdInput.value = expense.id;
-        
-        typeSelect.value = expense.transaction_type;
-        document.getElementById('description').value = expense.description;
-        grossValueInput.value = expense.gross_value;
-        ivaRateSelect.value = expense.iva_rate;
-        
-        updateCalculatedValues();
-        updateIvaFieldVisibility();
-        
-        isEditing = true;
-        if (modalTitle) modalTitle.textContent = 'Editar Transação';
-        if (submitButton) submitButton.textContent = 'Atualizar';
-        
-        form.action = `/update-expense/${id}`;
-        
-        openModal();
-      } else {
-        console.error('Erro ao buscar dados:', data.message);
-        alert("Erro ao buscar dados da transação");
-      }
-    })
-    .catch(error => {
-      console.error('Erro:', error);
-      alert("Erro ao processar a solicitação");
-    });
-}
-
-function deleteTransaction(id) {
-  id = parseInt(id);
-  
-  if (isNaN(id)) {
-    console.error('ID inválido:', id);
-    alert("Erro: ID de transação inválido");
-    return;
-  }
-  
-  if (confirm("Tem certeza que deseja eliminar esta transação?")) {
-    const currentPage = new URLSearchParams(window.location.search).get('page') || 1;
-    
-    fetch(`/delete-expense/${id}`, {
-      method: 'POST',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Content-Type': 'application/json'
-      }
-    })
-    .then(response => {
-      if (response.ok) {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) {
-          row.remove();
-          renderTransactions();
-          
-          const remainingRows = document.querySelectorAll("#transactions-tbody tr").length;
-          if (remainingRows === 0 && currentPage > 1) {
-            window.location.href = `/expenses?page=${parseInt(currentPage) - 1}`;
-          }
-        } else {
-          window.location.href = `/expenses?page=${currentPage}`;
-        }
-      } else {
-        response.json().then(data => {
-          console.error('Erro na resposta:', data);
-          alert(`Erro ao excluir a transação: ${data.message || 'Erro desconhecido'}`);
-        }).catch(() => {
-          alert("Erro ao excluir a transação");
-        });
-      }
-    })
-    .catch(error => {
-      console.error('Erro na requisição:', error);
-      alert("Erro ao processar a solicitação");
-    });
-  }
-}
-
-function goToPage(pageNum) {
-  window.location.href = `/expenses?page=${pageNum}`;
-}
-
-modal.addEventListener("click", (e) => {
-  if (e.target === modal) {
-    closeModal()
-  }
-})
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && modal.classList.contains("show")) {
-    closeModal()
-  }
-})

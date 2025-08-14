@@ -512,3 +512,37 @@ body {
   color: #6b7280;
   font-size: 14px;
 }
+
+.card-details {
+  margin: 8px 0;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.card-details div {
+  margin-bottom: 2px;
+}
+
+.card-extra-desc {
+  font-style: italic;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.input-help {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.employee-extra {
+  max-width: 150px;
+}
+
+.employee-extra small {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+}

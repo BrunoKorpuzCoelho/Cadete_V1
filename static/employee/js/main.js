@@ -3,6 +3,18 @@ const itemsPerPage = 100
 let employees = []
 let isEditing = false;
 
+function getCompanyId() {
+  const pathParts = window.location.pathname.split('/');
+  for (let i = 0; i < pathParts.length; i++) {
+    if (pathParts[i] === 'employee' && i + 1 < pathParts.length) {
+      return pathParts[i + 1];
+    }
+  }
+  return null;
+}
+
+const companyId = getCompanyId();
+
 const modalOverlay = document.getElementById("modalOverlay")
 const addEmployeeBtn = document.getElementById("addEmployeeBtn")
 const cancelBtn = document.getElementById("cancelBtn")
@@ -21,7 +33,12 @@ const employeeName = document.getElementById("employeeName")
 const employeePosition = document.getElementById("employeePosition")
 const employeeSalary = document.getElementById("employeeSalary")
 const employeeSocialSecurity = document.getElementById("employeeSocialSecurity")
+const employerSocialSecurity = document.getElementById("employerSocialSecurity")
+const employeeIRS = document.getElementById("employeeIRS")
+const extraPayment = document.getElementById("extraPayment")
+const extraPaymentDescription = document.getElementById("extraPaymentDescription")
 const employeeId = document.getElementById("employeeId")
+const companyIdInput = document.getElementById("companyIdInput") 
 const submitBtn = document.querySelector('.btn-primary');
 const modalTitle = document.querySelector('.modal-header h2');
 
@@ -38,6 +55,10 @@ employeeForm.addEventListener("submit", function(e) {
 function openModal() {
   modalOverlay.style.display = "flex"
   clearForm()
+  
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
 }
 
 function closeModal() {
@@ -49,7 +70,15 @@ function clearForm() {
   employeePosition.value = ""
   employeeSalary.value = ""
   employeeSocialSecurity.value = "11.00"
+  employerSocialSecurity.value = "23.75"
+  employeeIRS.value = "0.00"
+  extraPayment.value = "0.00"
+  extraPaymentDescription.value = ""
   employeeId.value = ""
+  
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
   
   isEditing = false;
   submitBtn.textContent = "Adicionar";
@@ -64,6 +93,10 @@ async function addEmployee() {
 
   try {
     const formData = new FormData(employeeForm)
+    
+    if (!formData.has('company_id') && companyId) {
+      formData.append('company_id', companyId);
+    }
     
     const url = isEditing 
       ? `/update-employee/${employeeId.value}` 
@@ -118,6 +151,10 @@ async function archiveEmployee(id, currentStatus) {
       const formData = new FormData();
       formData.append('is_active', !currentStatus);
       
+      if (companyId) {
+        formData.append('company_id', companyId);
+      }
+      
       const response = await fetch(`/toggle-employee-status/${id}`, {
         method: 'POST',
         body: formData
@@ -149,7 +186,15 @@ async function editEmployee(id) {
       employeePosition.value = employee.position;
       employeeSalary.value = employee.gross_salary;
       employeeSocialSecurity.value = employee.social_security_rate;
+      employerSocialSecurity.value = employee.employer_social_security_rate || 23.75;
+      employeeIRS.value = employee.irs_rate || 0;
+      extraPayment.value = employee.extra_payment || 0;
+      extraPaymentDescription.value = employee.extra_payment_description || '';
       employeeId.value = employee.id;
+      
+      if (companyIdInput) {
+        companyIdInput.value = employee.company_id || companyId;
+      }
       
       isEditing = true;
       submitBtn.textContent = "Atualizar";
@@ -169,6 +214,10 @@ function formatCurrency(value) {
     style: "currency",
     currency: "EUR",
   }).format(value)
+}
+
+function formatPercent(value) {
+  return value ? `${value}%` : '0%';
 }
 
 function renderEmployees() {
@@ -194,6 +243,13 @@ function renderEmployees() {
             <td class="employee-name">${employee.name}</td>
             <td class="employee-position">${employee.position}</td>
             <td class="employee-salary">${formatCurrency(employee.gross_salary)}</td>
+            <td class="employee-ss">${formatPercent(employee.social_security_rate)}</td>
+            <td class="employer-ss">${formatPercent(employee.employer_social_security_rate)}</td>
+            <td class="employee-irs">${formatPercent(employee.irs_rate)}</td>
+            <td class="employee-extra">
+                ${employee.extra_payment ? formatCurrency(employee.extra_payment) : '-'}
+                ${employee.extra_payment_description ? `<small>(${employee.extra_payment_description})</small>` : ''}
+            </td>
             <td class="employee-status">${employee.is_active ? 'Sim' : 'Não'}</td>
             <td>
                 <div class="actions">
@@ -234,6 +290,13 @@ function renderEmployees() {
                     <div class="card-name">${employee.name}</div>
                     <div class="card-position">${employee.position}</div>
                     <div class="card-salary">${formatCurrency(employee.gross_salary)}</div>
+                    <div class="card-details">
+                        <div>SS Empregado: ${formatPercent(employee.social_security_rate)}</div>
+                        <div>SS Empregador: ${formatPercent(employee.employer_social_security_rate)}</div>
+                        <div>IRS: ${formatPercent(employee.irs_rate)}</div>
+                        <div>Extra: ${employee.extra_payment ? formatCurrency(employee.extra_payment) : '-'}</div>
+                        ${employee.extra_payment_description ? `<div class="card-extra-desc">${employee.extra_payment_description}</div>` : ''}
+                    </div>
                     <div class="card-status">Ativo: ${employee.is_active ? 'Sim' : 'Não'}</div>
                 </div>
                 <div class="card-actions">
@@ -350,28 +413,41 @@ function showToast(message, type = "success") {
 
 async function loadEmployees() {
   try {
-    const response = await fetch('/get-employees')
-    const data = await response.json()
+    if (!companyId) {
+      showToast("Erro: ID da empresa não encontrado na URL.", "error");
+      return;
+    }
+    
+    const response = await fetch(`/get-employees/${companyId}`);
+    const data = await response.json();
     
     if (data.success) {
-      employees = data.employees
-      renderEmployees()
+      employees = data.employees;
+      renderEmployees();
     } else {
-      showToast("Erro ao carregar empregados: " + data.message, "error")
+      showToast("Erro ao carregar empregados: " + data.message, "error");
     }
   } catch (error) {
-    showToast("Erro ao comunicar com o servidor: " + error.message, "error")
+    showToast("Erro ao comunicar com o servidor: " + error.message, "error");
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadEmployees()
+  if (companyIdInput && companyId) {
+    companyIdInput.value = companyId;
+  }
+  
+  loadEmployees();
 })
 
 function goBack() {
-  window.history.back()
+  if (companyId) {
+    window.location.href = `/main-menu/${companyId}`;
+  } else {
+    window.history.back();
+  }
 }
 
 function handleLogout() {
-  window.location.href = '/logout'
+  window.location.href = '/logout';
 }
