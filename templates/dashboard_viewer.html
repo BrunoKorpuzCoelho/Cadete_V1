@@ -38,18 +38,27 @@
             <div class="summary-card revenue">
                 <div class="card-icon">💰</div>
                 <div class="card-content">
-                    <h3>Receitas</h3>
-                    <p class="card-value">€12.450</p>
-                    <span class="card-change positive">+8.2%</span>
+                    <h3>Total de Vendas</h3>
+                    <p class="card-value" id="revenue-value">€0</p>
+                    <span class="card-change" id="revenue-change">0%</span>
                 </div>
             </div>
 
-            <div class="summary-card expenses">
+            <div class="summary-card vat">
+                <div class="card-icon">🧾</div>
+                <div class="card-content">
+                    <h3>Total de IVA</h3>
+                    <p class="card-value" id="vat-value">€0</p>
+                    <span class="card-change" id="vat-change">0%</span>
+                </div>
+            </div>
+
+             <div class="summary-card expenses">
                 <div class="card-icon">💸</div>
                 <div class="card-content">
                     <h3>Despesas</h3>
-                    <p class="card-value">€8.320</p>
-                    <span class="card-change negative">+3.1%</span>
+                    <p class="card-value" id="expenses-value">€0</p>
+                    <span class="card-change" id="expenses-change">0%</span>
                 </div>
             </div>
 
@@ -57,8 +66,8 @@
                 <div class="card-icon">📈</div>
                 <div class="card-content">
                     <h3>Lucro Líquido</h3>
-                    <p class="card-value">€4.130</p>
-                    <span class="card-change positive">+12.5%</span>
+                    <p class="card-value" id="profit-value">€0</p>
+                    <span class="card-change" id="profit-change">0%</span>
                 </div>
             </div>
 
@@ -66,8 +75,8 @@
                 <div class="card-icon">👥</div>
                 <div class="card-content">
                     <h3>Custos Colaboradores</h3>
-                    <p class="card-value">€4.250</p>
-                    <span class="card-change neutral">+2.1%</span>
+                    <p class="card-value" id="collaborators-value">€0</p>
+                    <span class="card-change" id="collaborators-change">0%</span>
                 </div>
             </div>
         </div>
@@ -79,7 +88,6 @@
                 <div class="chart-selector">
                     <select id="chartType">
                         <option value="bar">Gráfico de Barras</option>
-                        <option value="pie">Gráfico de Pizza</option>
                         <option value="line">Performance Financeira</option>
                     </select>
                 </div>

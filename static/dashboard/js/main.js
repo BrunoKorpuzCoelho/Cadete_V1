@@ -7,7 +7,9 @@ function handleCardClick(cardType) {
         window.location.href = `/employee/${companyId}`;
     } else if (cardType === 'despesas-mensais') {
         window.location.href = `/dashboard/${companyId}`;  
-    } else {
+    } else if (cardType === 'historico-transacoes') {
+        window.location.href = `/simple-sales/${companyId}`;  
+    }else {
         alert(`Funcionalidade "${cardType}" será implementada em breve!`);
     }
 }
