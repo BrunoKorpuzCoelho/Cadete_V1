@@ -16,6 +16,10 @@ let isEditing = false;
 const modalTitle = document.querySelector('.modal-header h2');
 const submitButton = document.querySelector('.btn-primary');
 
+// Variáveis para controle de data
+let currentMonth = new Date().getMonth(); // 0-11
+let currentYear = new Date().getFullYear();
+
 document.addEventListener("DOMContentLoaded", () => {
   updateCalculatedValues()
   renderTransactions() 
@@ -28,6 +32,9 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", handleSubmit)
   
   updateIvaFieldVisibility()
+  
+  // Carregar dados financeiros
+  loadFinancialData()
 })
 
 function openModal() {
@@ -44,7 +51,7 @@ function closeModal() {
   isEditing = false;
   if (modalTitle) modalTitle.textContent = 'Adicionar Transação';
   if (submitButton) submitButton.textContent = 'Adicionar';
-  form.action = '/add-expenses';
+  form.action = '/add-simple-expenses';
   
   const expenseIdInput = document.getElementById('expense-id-input');
   if (expenseIdInput) expenseIdInput.value = '';
@@ -83,7 +90,9 @@ function updateIvaFieldVisibility() {
 }
 
 function goBack() {
-  window.history.back()
+  const pathParts = window.location.pathname.split('/');
+  const company_id = pathParts[pathParts.length - 1];
+  window.location.href = `/main-menu/${company_id}`;
 }
 
 function updateCalculatedValues() {
@@ -161,7 +170,7 @@ function editTransaction(id) {
     return;
   }
   
-  fetch(`/get-expense/${id}`)
+  fetch(`/get-simple-expense/${id}`)
     .then(response => response.json())
     .then(data => {
       if (data.success) {
@@ -182,7 +191,7 @@ function editTransaction(id) {
         if (modalTitle) modalTitle.textContent = 'Editar Transação';
         if (submitButton) submitButton.textContent = 'Atualizar';
         
-        form.action = `/update-expense/${id}`;
+        form.action = `/update-simple-expense/${id}`;
         
         openModal();
       } else {
@@ -208,7 +217,7 @@ function deleteTransaction(id) {
   if (confirm("Tem certeza que deseja eliminar esta transação?")) {
     const currentPage = new URLSearchParams(window.location.search).get('page') || 1;
     
-    fetch(`/delete-expense/${id}`, {
+    fetch(`/delete-simple-expense/${id}`, {
       method: 'POST',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
@@ -224,10 +233,10 @@ function deleteTransaction(id) {
           
           const remainingRows = document.querySelectorAll("#transactions-tbody tr").length;
           if (remainingRows === 0 && currentPage > 1) {
-            window.location.href = `/expenses?page=${parseInt(currentPage) - 1}`;
+            window.location.href = `/simple-sales?page=${parseInt(currentPage) - 1}`;
           }
         } else {
-          window.location.href = `/expenses?page=${currentPage}`;
+          window.location.href = `/simple-sales?page=${currentPage}`;
         }
       } else {
         response.json().then(data => {
@@ -246,7 +255,7 @@ function deleteTransaction(id) {
 }
 
 function goToPage(pageNum) {
-  window.location.href = `/expenses?page=${pageNum}`;
+  window.location.href = `/simple-sales?page=${pageNum}`;
 }
 
 modal.addEventListener("click", (e) => {
@@ -260,3 +269,66 @@ document.addEventListener("keydown", (e) => {
     closeModal()
   }
 })
+
+// Função para buscar os dados financeiros da API
+function loadFinancialData() {
+  const company_id = getCompanyIdFromUrl();
+  console.log("Carregando dados financeiros para empresa:", company_id);
+  
+  fetch(`/api/simple-financial-summary?company_id=${company_id}&month=${currentMonth + 1}&year=${currentYear}`)
+    .then(response => response.json())
+    .then(data => {
+      console.log("Dados recebidos da API:", data);
+      if (data.success) {
+        updateFinancialCards(data.summary);
+      } else {
+        console.error('Erro ao carregar dados:', data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Erro na requisição:', error);
+    });
+}
+
+// Função para extrair o ID da empresa da URL
+function getCompanyIdFromUrl() {
+  const pathParts = window.location.pathname.split('/');
+  return pathParts[pathParts.length - 1];
+}
+
+// Função para atualizar os valores nos cards financeiros
+function updateFinancialCards(data) {
+  // Se não houver dados, usar zeros
+  const summary = data || {};
+  
+  document.getElementById('revenue-value').textContent = formatCurrency(summary.total_sales || 0);
+  document.getElementById('expenses-value').textContent = formatCurrency(summary.total_costs || 0);
+  document.getElementById('vat-value').textContent = formatCurrency(summary.total_vat || 0);
+  document.getElementById('profit-value').textContent = formatCurrency(summary.profit || 0);
+  
+  updateChangeIndicator('revenue-change', summary.sales_change);
+  updateChangeIndicator('expenses-change', summary.costs_change);
+  updateChangeIndicator('profit-change', summary.profit_change);
+  updateChangeIndicator('vat-change', summary.vat_change);
+}
+
+function updateChangeIndicator(elementId, changeValue) {
+  const element = document.getElementById(elementId);
+  
+  if (!changeValue) {
+    element.textContent = '0%';
+    element.className = 'card-change neutral';
+    return;
+  }
+  
+  const formattedChange = (changeValue > 0 ? '+' : '') + changeValue.toFixed(1) + '%';
+  element.textContent = formattedChange;
+  
+  if (changeValue > 0) {
+    element.className = 'card-change positive';
+  } else if (changeValue < 0) {
+    element.className = 'card-change negative';
+  } else {
+    element.className = 'card-change neutral';
+  }
+}

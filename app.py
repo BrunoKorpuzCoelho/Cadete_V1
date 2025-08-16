@@ -9,7 +9,7 @@ import base64
 from extensions import db, login_manager
 from instance.install_core import install_core
 from datetime import datetime
-from instance.base import Expenses, Employee, Company, MonthlySummary
+from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMonthlySummary, SimpleExpenses
 
 app = Flask(__name__)
 
@@ -447,11 +447,6 @@ def add_employee():
 def get_employees(company_id):
     try:
         company = Company.query.get_or_404(company_id)
-        if company.user_id != current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'Acesso negado a esta empresa.'
-            }), 403
         
         employees = Employee.query.filter_by(company_id=company_id).all()
         employees_list = []
@@ -659,7 +654,7 @@ def toggle_employee_status(employee_id):
 @app.route('/company')
 @login_required
 def company():
-    companies = Company.query.filter_by(user_id=current_user.id).all()
+    companies = Company.query.all()
     return render_template('company.html', companies=companies)
 
 @app.route('/add-company', methods=['POST'])
@@ -846,13 +841,6 @@ def api_financial_summary():
                 'message': 'Parâmetros inválidos'
             }), 400
             
-        company = Company.query.get_or_404(company_id)
-        if company.user_id != current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'Acesso negado a esta empresa'
-            }), 403
-            
         summary = MonthlySummary.query.filter_by(
             company_id=company_id,
             month=month,
@@ -929,12 +917,7 @@ def api_chart_data():
                 'message': 'ID da empresa não fornecido'
             }), 400
             
-        company = Company.query.get_or_404(company_id)
-        if company.user_id != current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'Acesso negado a esta empresa'
-            }), 403
+        
         
         chart_data = {}
         
@@ -1077,8 +1060,340 @@ def simple_sales(company_id):
     per_page = 100  
     user_type = current_user.type
     
-    pagination = Expenses.query.filter_by(company_id=company_id).order_by(Expenses.create_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('simple_sales.html', company_id=company_id, company=company, user_type=user_type, pagination=pagination)
+    pagination = SimpleExpenses.query.filter_by(company_id=company_id).order_by(SimpleExpenses.create_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    all_expenses = pagination.items
+    
+    return render_template('simple_sales.html', company_id=company_id, company=company, user_type=user_type, pagination=pagination, expenses=all_expenses)
+
+@app.route('/add-simple-expenses', methods=['POST'])
+@login_required
+def add_simple_expense():
+    try:
+        company_id = request.form.get('company_id')
+        
+        if not company_id:
+            flash('❌ ID da empresa não fornecido.', 'error')
+            return redirect(url_for('company'))
+            
+        transaction_type = request.form.get('transaction_type')
+        description = request.form.get('description')
+        gross_value = float(request.form.get('gross_value'))
+        iva_rate = float(request.form.get('iva_rate'))
+        iva_value = float(request.form.get('iva_value'))
+        net_value = float(request.form.get('net_value'))
+        
+        if not all([transaction_type, description, gross_value >= 0, iva_rate >= 0]):
+            flash('❌ Por favor, preencha todos os campos corretamente.', 'error')
+            return redirect(url_for('simple_sales', company_id=company_id))
+        
+        new_expense = SimpleExpenses(
+            transaction_type=transaction_type,
+            description=description,
+            gross_value=gross_value,
+            iva_rate=iva_rate,
+            iva_value=iva_value,
+            net_value=net_value,
+            user_id=current_user.id,
+            company_id=int(company_id) 
+        )
+        
+        db.session.add(new_expense)
+        db.session.commit()
+        
+        update_simple_monthly_summary(new_expense)
+        
+        flash('✅ Transação adicionada com sucesso!', 'success')
+        return redirect(url_for('simple_sales', company_id=company_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        company_id = request.form.get('company_id')
+        if company_id:
+            flash(f'❌ Erro ao adicionar transação: {str(e)}', 'error')
+            return redirect(url_for('simple_sales', company_id=company_id))
+        else:
+            flash(f'❌ Erro ao adicionar transação: {str(e)}', 'error')
+            return redirect(url_for('company'))
+        
+def update_simple_monthly_summary(expense):
+    transaction_date = expense.create_date
+    month = transaction_date.month
+    year = transaction_date.year
+    
+    summary = SimpleMonthlySummary.query.filter_by(
+        month=month, 
+        year=year,
+        company_id=expense.company_id
+    ).first()
+    
+    if not summary:
+        summary = SimpleMonthlySummary(
+            month=month,
+            year=year,
+            company_id=expense.company_id
+        )
+        db.session.add(summary)
+    
+    if expense.transaction_type.lower() == 'ganho':
+        summary.total_sales += expense.gross_value
+        summary.total_sales_without_vat += expense.net_value
+        summary.total_vat += expense.iva_value
+    elif expense.transaction_type.lower() == 'despesa':
+        summary.total_costs += expense.gross_value
+    
+    summary.profit = summary.total_sales - summary.total_costs
+    summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
+    
+    db.session.commit()
+
+@app.route('/delete-simple-expense/<int:expense_id>', methods=['POST'])
+@login_required
+def delete_simple_expense(expense_id):
+    try:
+        expense = SimpleExpenses.query.get_or_404(expense_id)
+        
+        if expense.user_id != current_user.id:
+            return jsonify({'success': False, 'message': 'Acesso negado'}), 403
+        
+        transaction_type = expense.transaction_type
+        gross_value = expense.gross_value
+        net_value = expense.net_value
+        iva_value = expense.iva_value
+        company_id = expense.company_id
+        transaction_date = expense.create_date
+        
+        db.session.delete(expense)
+        db.session.commit()
+        
+        remove_from_simple_monthly_summary(
+            transaction_date,
+            company_id,
+            transaction_type,
+            gross_value,
+            net_value,
+            iva_value
+        )
+        
+        return jsonify({'success': True, 'company_id': company_id}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+def remove_from_simple_monthly_summary(date, company_id, transaction_type, gross_value, net_value, iva_value):
+    month = date.month
+    year = date.year
+    
+    summary = SimpleMonthlySummary.query.filter_by(
+        month=month, 
+        year=year,
+        company_id=company_id
+    ).first()
+    
+    if summary:
+        if transaction_type.lower() == 'ganho':
+            summary.total_sales -= gross_value
+            summary.total_sales_without_vat -= net_value
+            summary.total_vat -= iva_value
+        elif transaction_type.lower() == 'despesa':
+            summary.total_costs -= gross_value
+        
+        summary.profit = summary.total_sales - summary.total_costs
+        summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
+        
+        db.session.commit()
+
+@app.route('/get-simple-expense/<int:expense_id>')
+@login_required
+def get_simple_expense(expense_id):
+    try:
+        expense = SimpleExpenses.query.get_or_404(expense_id)
+        
+        if expense.user_id != current_user.id and current_user.type != 'Admin':
+            return jsonify({'success': False, 'message': 'Acesso negado'}), 403
+        
+        expense_dict = {
+            'id': expense.id,
+            'transaction_type': expense.transaction_type,
+            'description': expense.description,
+            'gross_value': expense.gross_value,
+            'iva_rate': expense.iva_rate,
+            'iva_value': expense.iva_value,
+            'net_value': expense.net_value,
+            'company_id': expense.company_id 
+        }
+        
+        return jsonify({'success': True, 'expense': expense_dict})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/update-simple-expense/<int:expense_id>', methods=['POST'])
+@login_required
+def update_simple_expense(expense_id):
+    try:
+        expense = SimpleExpenses.query.get_or_404(expense_id)
+        
+        company_id = request.form.get('company_id')
+        if not company_id:
+            company_id = expense.company_id
+        
+        if expense.user_id != current_user.id and current_user.type != 'Admin':
+            flash('❌ Você não tem permissão para editar esta transação.', 'error')
+            return redirect(url_for('simple_sales', company_id=company_id))
+        
+        old_transaction_type = expense.transaction_type
+        old_gross_value = expense.gross_value
+        old_net_value = expense.net_value
+        old_iva_value = expense.iva_value
+        
+        expense.transaction_type = request.form.get('transaction_type')
+        expense.description = request.form.get('description')
+        expense.gross_value = float(request.form.get('gross_value'))
+        expense.iva_rate = float(request.form.get('iva_rate'))
+        expense.iva_value = float(request.form.get('iva_value'))
+        expense.net_value = float(request.form.get('net_value'))
+        
+        db.session.commit()
+        
+        adjust_simple_monthly_summary(
+            expense,
+            old_transaction_type,
+            old_gross_value,
+            old_net_value,
+            old_iva_value
+        )
+        
+        flash('✅ Transação atualizada com sucesso!', 'success')
+        return redirect(url_for('simple_sales', company_id=company_id))
+        
+    except Exception as e:
+        db.session.rollback()
+        
+        company_id = request.form.get('company_id')
+        if not company_id and expense:
+            company_id = expense.company_id
+            
+        flash(f'❌ Erro ao atualizar transação: {str(e)}', 'error')
+        
+        if company_id:
+            return redirect(url_for('simple_sales', company_id=company_id))
+        else:
+            return redirect(url_for('company'))
+
+def adjust_simple_monthly_summary(expense, old_type, old_gross, old_net, old_iva):
+    transaction_date = expense.create_date
+    month = transaction_date.month
+    year = transaction_date.year
+    
+    summary = SimpleMonthlySummary.query.filter_by(
+        month=month, 
+        year=year,
+        company_id=expense.company_id
+    ).first()
+    
+    if not summary:
+        summary = SimpleMonthlySummary(
+            month=month,
+            year=year,
+            company_id=expense.company_id
+        )
+        db.session.add(summary)
+        
+        if expense.transaction_type.lower() == 'ganho':
+            summary.total_sales += expense.gross_value
+            summary.total_sales_without_vat += expense.net_value
+            summary.total_vat += expense.iva_value
+        elif expense.transaction_type.lower() == 'despesa':
+            summary.total_costs += expense.gross_value
+    else:
+        if old_type.lower() == 'ganho':
+            summary.total_sales -= old_gross
+            summary.total_sales_without_vat -= old_net
+            summary.total_vat -= old_iva
+        elif old_type.lower() == 'despesa':
+            summary.total_costs -= old_gross
+        
+        if expense.transaction_type.lower() == 'ganho':
+            summary.total_sales += expense.gross_value
+            summary.total_sales_without_vat += expense.net_value
+            summary.total_vat += expense.iva_value
+        elif expense.transaction_type.lower() == 'despesa':
+            summary.total_costs += expense.gross_value
+    
+    summary.profit = summary.total_sales - summary.total_costs
+    summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
+    
+    db.session.commit()
+
+@app.route('/api/simple-financial-summary')
+@login_required
+def api_simple_financial_summary():
+    try:
+        company_id = request.args.get('company_id', type=int)
+        month = request.args.get('month', type=int)
+        year = request.args.get('year', type=int)
+        
+        if not all([company_id, month, year]):
+            return jsonify({
+                'success': False,
+                'message': 'Parâmetros inválidos'
+            }), 400
+            
+        summary = SimpleMonthlySummary.query.filter_by(
+            company_id=company_id,
+            month=month,
+            year=year
+        ).first()
+        
+        data = {}
+        
+        if summary:
+            data = {
+                'total_sales': summary.total_sales,
+                'total_sales_without_vat': summary.total_sales_without_vat,
+                'total_vat': summary.total_vat,
+                'total_costs': summary.total_costs,
+                'profit': summary.profit,
+                'profit_without_vat': summary.profit_without_vat
+            }
+            
+            prev_month = month - 1
+            prev_year = year
+            
+            if prev_month == 0:
+                prev_month = 12
+                prev_year -= 1
+                
+            prev_summary = SimpleMonthlySummary.query.filter_by(
+                company_id=company_id,
+                month=prev_month,
+                year=prev_year
+            ).first()
+            
+            if prev_summary:
+                if prev_summary.total_sales > 0:
+                    data['sales_change'] = ((summary.total_sales - prev_summary.total_sales) / prev_summary.total_sales) * 100
+                
+                if prev_summary.total_costs > 0:
+                    data['costs_change'] = ((summary.total_costs - prev_summary.total_costs) / prev_summary.total_costs) * 100
+                
+                if prev_summary.profit > 0:
+                    data['profit_change'] = ((summary.profit - prev_summary.profit) / prev_summary.profit) * 100
+                
+                if prev_summary.total_vat > 0:
+                    data['vat_change'] = ((summary.total_vat - prev_summary.total_vat) / prev_summary.total_vat) * 100
+        
+        return jsonify({
+            'success': True,
+            'summary': data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao buscar dados financeiros: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     with app.app_context():

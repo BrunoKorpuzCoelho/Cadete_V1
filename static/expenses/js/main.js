@@ -83,7 +83,9 @@ function updateIvaFieldVisibility() {
 }
 
 function goBack() {
-  window.history.back()
+  const pathParts = window.location.pathname.split('/');
+  const company_id = pathParts[pathParts.length - 1];
+  window.location.href = `/main-menu/${company_id}`;
 }
 
 function updateCalculatedValues() {

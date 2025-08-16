@@ -141,3 +141,62 @@ class Company(db.Model):
         self.contact_person = contact_person
         self.notes = notes
         self.is_active = is_active
+
+class SimpleExpenses(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transaction_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    gross_value = db.Column(db.Float, nullable=False)
+    iva_rate = db.Column(db.Float, nullable=False)
+    iva_value = db.Column(db.Float, nullable=False)
+    net_value = db.Column(db.Float, nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    company = db.relationship('Company', backref=db.backref('simple_expenses', lazy=True))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user = db.relationship('User', backref=db.backref('simple_expenses', lazy=True))
+    create_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    def __init__(self, transaction_type, description, gross_value, iva_rate, iva_value, net_value, user_id, company_id):
+        self.transaction_type = transaction_type
+        self.description = description
+        self.gross_value = gross_value
+        self.iva_rate = iva_rate
+        self.iva_value = iva_value
+        self.net_value = net_value
+        self.user_id = user_id
+        self.company_id = company_id
+
+class SimpleMonthlySummary(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Integer, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    total_sales = db.Column(db.Float, default=0.0)
+    total_sales_without_vat = db.Column(db.Float, default=0.0)
+    total_vat = db.Column(db.Float, default=0.0)
+    total_costs = db.Column(db.Float, default=0.0)
+    profit = db.Column(db.Float, default=0.0)
+    profit_without_vat = db.Column(db.Float, default=0.0)
+    total_employee_salaries = db.Column(db.Float, default=0.0) 
+    total_employee_insurance = db.Column(db.Float, default=0.0) 
+    total_employer_social_security = db.Column(db.Float, default=0.0)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    company = db.relationship('Company', backref=db.backref('simple_monthly_summaries', lazy=True))
+    create_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    __table_args__ = (
+        db.UniqueConstraint('month', 'year', 'company_id', name='_simple_month_year_company_uc'),
+    )
+    
+    def __init__(self, month, year, company_id, total_sales=0.0, total_sales_without_vat=0.0, 
+                 total_vat=0.0, total_costs=0.0, profit=0.0, profit_without_vat=0.0):
+        self.month = month
+        self.year = year
+        self.company_id = company_id
+        self.total_sales = total_sales
+        self.total_sales_without_vat = total_sales_without_vat
+        self.total_vat = total_vat
+        self.total_costs = total_costs
+        self.profit = profit
+        self.profit_without_vat = profit_without_vat

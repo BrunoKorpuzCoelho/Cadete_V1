@@ -31,5 +31,7 @@ document.querySelectorAll('.card').forEach(card => {
 });
 
 function goBack() {
-  window.location.href = '/company';
+  const pathParts = window.location.pathname.split('/');
+  const company_id = pathParts[pathParts.length - 1];
+  window.location.href = `/main-menu/${company_id}`;
 }

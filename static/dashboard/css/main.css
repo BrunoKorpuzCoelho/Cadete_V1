@@ -190,3 +190,8 @@ body {
 .back-btn:hover {
   background-color: #f1f5f9;
 }
+
+.btn-container {
+    display: flex;
+    flex-direction: row;
+}
