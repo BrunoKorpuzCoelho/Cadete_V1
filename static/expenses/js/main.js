@@ -97,8 +97,8 @@ function updateCalculatedValues() {
   let netValue = grossValue
 
   if (type === "ganho" && ivaRate > 0) {
-    ivaValue = grossValue * (ivaRate / 100)
-    netValue = grossValue - ivaValue
+    netValue = grossValue / (1 + (ivaRate / 100))
+    ivaValue = grossValue - netValue
   }
 
   ivaValueSpan.textContent = formatCurrency(ivaValue)
@@ -112,6 +112,8 @@ function formatCurrency(value) {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
     currency: "EUR",
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2  
   }).format(value)
 }
 
@@ -128,8 +130,9 @@ function handleSubmit(e) {
   let netValue = grossValue
 
   if (type === "ganho" && ivaRate > 0) {
-    ivaValue = grossValue * (ivaRate / 100)
-    netValue = grossValue - ivaValue
+    // Usar a mesma fórmula de updateCalculatedValues
+    netValue = grossValue / (1 + (ivaRate / 100))
+    ivaValue = grossValue - netValue
   }
 
   ivaValueInput.value = ivaValue.toFixed(2)

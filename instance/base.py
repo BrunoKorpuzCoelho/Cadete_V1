@@ -200,3 +200,39 @@ class SimpleMonthlySummary(db.Model):
         self.total_costs = total_costs
         self.profit = profit
         self.profit_without_vat = profit_without_vat
+
+class Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    total_insurance_value = db.Column(db.Float, default=0.0, nullable=False)
+    rent_value = db.Column(db.Float, default=0.0, nullable=False)
+    employee_insurance_value = db.Column(db.Float, default=0.0, nullable=False)
+    preferred_salary_expense_day = db.Column(db.Integer, default=1, nullable=False)
+    other_expenses = db.Column(db.Float, default=0.0, nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('company.id'), nullable=False)
+    company = db.relationship('Company', backref=db.backref('settings', lazy=True, uselist=False))
+    create_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    __table_args__ = (
+        db.UniqueConstraint('company_id', name='_company_settings_uc'),
+    )
+    
+    def __init__(self, company_id, total_insurance_value=0.0, rent_value=0.0, 
+                 employee_insurance_value=0.0, preferred_salary_expense_day=1, other_expenses=0.0):
+        self.company_id = company_id
+        self.total_insurance_value = total_insurance_value
+        self.rent_value = rent_value
+        self.employee_insurance_value = employee_insurance_value
+        self.preferred_salary_expense_day = preferred_salary_expense_day
+        self.other_expenses = other_expenses
+
+class Info(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    payment_vps_date = db.Column(db.Date, nullable=True)
+    subscription_type_vps = db.Column(db.String(100), nullable=True)
+    create_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    
+    def __init__(self, payment_vps_date=None, subscription_type_vps=None):
+        self.payment_vps_date = payment_vps_date
+        self.subscription_type_vps = subscription_type_vps

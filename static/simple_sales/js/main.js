@@ -11,19 +11,28 @@ const ivaValueInput = document.getElementById("iva-value-input")
 const netValueInput = document.getElementById("net-value-input")
 const ivaRateGroup = document.querySelector('.form-group:has(#iva-rate)') || ivaRateSelect.closest('.form-group')
 const userType = document.body.getAttribute('data-user-type') || 'user'
+const monthSelect = document.getElementById("month-select")
+const yearSelect = document.getElementById("year-select")
+const filterBtn = document.getElementById("filter-btn")
 
 let isEditing = false;
 const modalTitle = document.querySelector('.modal-header h2');
 const submitButton = document.querySelector('.btn-primary');
 
 // Variáveis para controle de data
-let currentMonth = new Date().getMonth(); // 0-11
+let currentMonth = new Date().getMonth() + 1; // 1-12
 let currentYear = new Date().getFullYear();
 
 document.addEventListener("DOMContentLoaded", () => {
   updateCalculatedValues()
   renderTransactions() 
 
+  // Preencher o seletor de anos (último 5 anos até o atual + 2 anos futuros)
+  populateYearSelect()
+  
+  // Definir o mês e ano atuais nos seletores
+  setInitialMonthAndYear()
+  
   grossValueInput.addEventListener("input", updateCalculatedValues)
   ivaRateSelect.addEventListener("change", updateCalculatedValues)
   
@@ -31,11 +40,66 @@ document.addEventListener("DOMContentLoaded", () => {
   
   form.addEventListener("submit", handleSubmit)
   
+  // Adicionar event listener para o botão de filtro
+  filterBtn.addEventListener("click", applyFilters)
+  
   updateIvaFieldVisibility()
   
   // Carregar dados financeiros
   loadFinancialData()
 })
+
+function populateYearSelect() {
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 5;
+  const endYear = currentYear + 2;
+  
+  for (let year = startYear; year <= endYear; year++) {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year;
+    yearSelect.appendChild(option);
+  }
+}
+
+function setInitialMonthAndYear() {
+  // Tentar obter o mês e ano dos parâmetros da URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlMonth = urlParams.get('month');
+  const urlYear = urlParams.get('year');
+  
+  const now = new Date();
+  
+  if (urlMonth) {
+    monthSelect.value = urlMonth;
+    currentMonth = parseInt(urlMonth);
+  } else {
+    monthSelect.value = now.getMonth() + 1;
+    currentMonth = now.getMonth() + 1;
+  }
+  
+  if (urlYear) {
+    yearSelect.value = urlYear;
+    currentYear = parseInt(urlYear);
+  } else {
+    yearSelect.value = now.getFullYear();
+    currentYear = now.getFullYear();
+  }
+}
+
+function applyFilters() {
+  const selectedMonth = monthSelect.value;
+  const selectedYear = yearSelect.value;
+  const company_id = getCompanyIdFromUrl();
+  
+  // Atualizar os valores atuais
+  currentMonth = parseInt(selectedMonth);
+  currentYear = parseInt(selectedYear);
+  
+  // Redirecionar para a mesma página com os parâmetros de filtro
+  // Usar o nome correto da rota conforme definido no backend
+  window.location.href = `/simple-sales/${company_id}?month=${selectedMonth}&year=${selectedYear}`;
+}
 
 function openModal() {
   modal.classList.add("show")
@@ -149,6 +213,19 @@ function handleSubmit(e) {
       form.action = `${form.action}${separator}page=${currentPage}`;
     }
   }
+  
+  // Adicionar os parâmetros de mês e ano ao formulário para manter o filtro após a submissão
+  const monthParam = document.createElement('input');
+  monthParam.type = 'hidden';
+  monthParam.name = 'month';
+  monthParam.value = currentMonth;
+  form.appendChild(monthParam);
+  
+  const yearParam = document.createElement('input');
+  yearParam.type = 'hidden';
+  yearParam.name = 'year';
+  yearParam.value = currentYear;
+  form.appendChild(yearParam);
 }
 
 function renderTransactions() {
@@ -226,18 +303,37 @@ function deleteTransaction(id) {
     })
     .then(response => {
       if (response.ok) {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) {
-          row.remove();
-          renderTransactions();
-          
-          const remainingRows = document.querySelectorAll("#transactions-tbody tr").length;
-          if (remainingRows === 0 && currentPage > 1) {
-            window.location.href = `/simple-sales?page=${parseInt(currentPage) - 1}`;
+        return response.json().then(data => {
+          const row = document.querySelector(`tr[data-id="${id}"]`);
+          if (row) {
+            row.remove();
+            renderTransactions();
+            
+            const remainingRows = document.querySelectorAll("#transactions-tbody tr").length;
+            if (remainingRows === 0 && currentPage > 1) {
+              // Manter os parâmetros de mês e ano ao redirecionar
+              const urlParams = new URLSearchParams(window.location.search);
+              const month = urlParams.get('month') || currentMonth;
+              const year = urlParams.get('year') || currentYear;
+              
+              window.location.href = `/simple-sales/${getCompanyIdFromUrl()}?page=${parseInt(currentPage) - 1}&month=${month}&year=${year}`;
+            } else {
+              // Recarregar os dados financeiros após excluir uma transação
+              loadFinancialData();
+            }
+          } else {
+            // Manter os parâmetros de mês e ano ao redirecionar
+            const urlParams = new URLSearchParams(window.location.search);
+            const month = urlParams.get('month') || currentMonth;
+            const year = urlParams.get('year') || currentYear;
+            
+            window.location.href = `/simple-sales/${data.company_id}?page=${currentPage}&month=${month}&year=${year}`;
           }
-        } else {
-          window.location.href = `/simple-sales?page=${currentPage}`;
-        }
+        }).catch(error => {
+          console.error('Erro ao processar resposta:', error);
+          // Tentar recarregar a página se não conseguir processar a resposta
+          window.location.reload();
+        });
       } else {
         response.json().then(data => {
           console.error('Erro na resposta:', data);
@@ -255,7 +351,12 @@ function deleteTransaction(id) {
 }
 
 function goToPage(pageNum) {
-  window.location.href = `/simple-sales?page=${pageNum}`;
+  // Manter os parâmetros de mês e ano ao navegar pelas páginas
+  const urlParams = new URLSearchParams(window.location.search);
+  const month = urlParams.get('month') || currentMonth;
+  const year = urlParams.get('year') || currentYear;
+  
+  window.location.href = `/simple-sales/${getCompanyIdFromUrl()}?page=${pageNum}&month=${month}&year=${year}`;
 }
 
 modal.addEventListener("click", (e) => {
@@ -273,9 +374,9 @@ document.addEventListener("keydown", (e) => {
 // Função para buscar os dados financeiros da API
 function loadFinancialData() {
   const company_id = getCompanyIdFromUrl();
-  console.log("Carregando dados financeiros para empresa:", company_id);
+  console.log("Carregando dados financeiros para empresa:", company_id, "mês:", currentMonth, "ano:", currentYear);
   
-  fetch(`/api/simple-financial-summary?company_id=${company_id}&month=${currentMonth + 1}&year=${currentYear}`)
+  fetch(`/api/simple-financial-summary?company_id=${company_id}&month=${currentMonth}&year=${currentYear}`)
     .then(response => response.json())
     .then(data => {
       console.log("Dados recebidos da API:", data);

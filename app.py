@@ -4,12 +4,14 @@ sys.dont_write_bytecode = True
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, logout_user, current_user, login_user
 from sqlalchemy import event
+import calendar
 import os
 import base64
 from extensions import db, login_manager
 from instance.install_core import install_core
 from datetime import datetime
-from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMonthlySummary, SimpleExpenses
+from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMonthlySummary, SimpleExpenses, Settings, Info
+from day_checker import start_day_checker
 
 app = Flask(__name__)
 
@@ -250,8 +252,6 @@ def get_expense(expense_id):
     try:
         expense = Expenses.query.get_or_404(expense_id)
         
-        if expense.user_id != current_user.id and current_user.type != 'Admin':
-            return jsonify({'success': False, 'message': 'Acesso negado'}), 403
         
         expense_dict = {
             'id': expense.id,
@@ -717,7 +717,7 @@ def add_company():
 @login_required
 def get_companies():
     try:
-        companies = Company.query.filter_by(user_id=current_user.id).all()
+        companies = Company.query.all()
         companies_list = []
         
         for company in companies:
@@ -746,12 +746,6 @@ def get_companies():
 def get_company(company_id):
     try:
         company = Company.query.get_or_404(company_id)
-        
-        if company.user_id != current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'Acesso negado a esta empresa.'
-            }), 403
         
         company_data = {
             'id': company.id,
@@ -782,12 +776,6 @@ def get_company(company_id):
 def update_company(company_id):
     try:
         company = Company.query.get_or_404(company_id)
-        
-        if company.user_id != current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'Acesso negado a esta empresa.'
-            }), 403
         
         company.name = request.form.get('name')
         company.location = request.form.get('location', '')
@@ -1052,18 +1040,89 @@ def api_chart_data():
             'message': f'Erro ao buscar dados para o gráfico: {str(e)}'
         }), 500
     
+@app.route('/api/transactions')
+@login_required
+def get_transactions():
+    try:
+        company_id = request.args.get('company_id', type=int)
+        month = request.args.get('month', type=int)
+        year = request.args.get('year', type=int)
+        transaction_type = request.args.get('type')
+        
+        if not all([company_id, month, year]):
+            return jsonify({
+                'success': False,
+                'message': 'Parâmetros inválidos'
+            }), 400
+        
+        query = Expenses.query.filter(
+            Expenses.company_id == company_id,
+            db.extract('month', Expenses.create_date) == month,
+            db.extract('year', Expenses.create_date) == year
+        )
+        
+        if transaction_type:
+            query = query.filter(Expenses.transaction_type.ilike(f'%{transaction_type}%'))
+            
+        transactions = query.order_by(Expenses.create_date.desc()).all()
+        
+        transaction_list = []
+        for transaction in transactions:
+            transaction_list.append({
+                'id': transaction.id,
+                'transaction_type': transaction.transaction_type,
+                'description': transaction.description,
+                'gross_value': transaction.gross_value,
+                'iva_rate': transaction.iva_rate,
+                'iva_value': transaction.iva_value,
+                'net_value': transaction.net_value,
+                'create_date': transaction.create_date.strftime("%Y-%m-%d %H:%M:%S")
+            })
+        
+        return jsonify({
+            'success': True,
+            'transactions': transaction_list
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao buscar transações: {str(e)}'
+        }), 500
+    
 @app.route('/simple-sales/<int:company_id>')
 @login_required
 def simple_sales(company_id):
     company = Company.query.get_or_404(company_id)
     page = request.args.get('page', 1, type=int)  
-    per_page = 100  
+    per_page = 100
     user_type = current_user.type
     
-    pagination = SimpleExpenses.query.filter_by(company_id=company_id).order_by(SimpleExpenses.create_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+    
+    month = request.args.get('month', current_month, type=int)
+    year = request.args.get('year', current_year, type=int)
+    
+    query = SimpleExpenses.query.filter_by(company_id=company_id)
+    
+    if month and year:
+        query = query.filter(
+            db.extract('month', SimpleExpenses.create_date) == month,
+            db.extract('year', SimpleExpenses.create_date) == year
+        )
+    
+    pagination = query.order_by(SimpleExpenses.create_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
     all_expenses = pagination.items
     
-    return render_template('simple_sales.html', company_id=company_id, company=company, user_type=user_type, pagination=pagination, expenses=all_expenses)
+    return render_template('simple_sales.html', 
+                          company_id=company_id, 
+                          company=company, 
+                          user_type=user_type, 
+                          pagination=pagination, 
+                          expenses=all_expenses,
+                          current_month=month,
+                          current_year=year)
 
 @app.route('/add-simple-expenses', methods=['POST'])
 @login_required
@@ -1209,9 +1268,6 @@ def get_simple_expense(expense_id):
     try:
         expense = SimpleExpenses.query.get_or_404(expense_id)
         
-        if expense.user_id != current_user.id and current_user.type != 'Admin':
-            return jsonify({'success': False, 'message': 'Acesso negado'}), 403
-        
         expense_dict = {
             'id': expense.id,
             'transaction_type': expense.transaction_type,
@@ -1346,10 +1402,36 @@ def api_simple_financial_summary():
             year=year
         ).first()
         
-        data = {}
-        
-        if summary:
-            data = {
+        if not summary:
+            expenses = SimpleExpenses.query.filter(
+                SimpleExpenses.company_id == company_id,
+                db.extract('month', SimpleExpenses.create_date) == month,
+                db.extract('year', SimpleExpenses.create_date) == year
+            ).all()
+            
+            total_sales = 0.0
+            total_sales_without_vat = 0.0
+            total_vat = 0.0
+            total_costs = 0.0
+            
+            for expense in expenses:
+                if expense.transaction_type.lower() == 'ganho':
+                    total_sales += expense.gross_value
+                    total_sales_without_vat += expense.net_value
+                    total_vat += expense.iva_value
+                elif expense.transaction_type.lower() == 'despesa':
+                    total_costs += expense.gross_value
+            
+            summary_data = {
+                'total_sales': total_sales,
+                'total_sales_without_vat': total_sales_without_vat,
+                'total_vat': total_vat,
+                'total_costs': total_costs,
+                'profit': total_sales - total_costs,
+                'profit_without_vat': total_sales_without_vat - total_costs
+            }
+        else:
+            summary_data = {
                 'total_sales': summary.total_sales,
                 'total_sales_without_vat': summary.total_sales_without_vat,
                 'total_vat': summary.total_vat,
@@ -1357,36 +1439,36 @@ def api_simple_financial_summary():
                 'profit': summary.profit,
                 'profit_without_vat': summary.profit_without_vat
             }
+        
+        prev_month = month - 1
+        prev_year = year
+        
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
             
-            prev_month = month - 1
-            prev_year = year
+        prev_summary = SimpleMonthlySummary.query.filter_by(
+            company_id=company_id,
+            month=prev_month,
+            year=prev_year
+        ).first()
+        
+        if prev_summary:
+            if prev_summary.total_sales > 0:
+                summary_data['sales_change'] = ((summary_data['total_sales'] - prev_summary.total_sales) / prev_summary.total_sales) * 100
             
-            if prev_month == 0:
-                prev_month = 12
-                prev_year -= 1
-                
-            prev_summary = SimpleMonthlySummary.query.filter_by(
-                company_id=company_id,
-                month=prev_month,
-                year=prev_year
-            ).first()
+            if prev_summary.total_costs > 0:
+                summary_data['costs_change'] = ((summary_data['total_costs'] - prev_summary.total_costs) / prev_summary.total_costs) * 100
             
-            if prev_summary:
-                if prev_summary.total_sales > 0:
-                    data['sales_change'] = ((summary.total_sales - prev_summary.total_sales) / prev_summary.total_sales) * 100
-                
-                if prev_summary.total_costs > 0:
-                    data['costs_change'] = ((summary.total_costs - prev_summary.total_costs) / prev_summary.total_costs) * 100
-                
-                if prev_summary.profit > 0:
-                    data['profit_change'] = ((summary.profit - prev_summary.profit) / prev_summary.profit) * 100
-                
-                if prev_summary.total_vat > 0:
-                    data['vat_change'] = ((summary.total_vat - prev_summary.total_vat) / prev_summary.total_vat) * 100
+            if prev_summary.profit > 0:
+                summary_data['profit_change'] = ((summary_data['profit'] - prev_summary.profit) / prev_summary.profit) * 100
+            
+            if prev_summary.total_vat > 0:
+                summary_data['vat_change'] = ((summary_data['total_vat'] - prev_summary.total_vat) / prev_summary.total_vat) * 100
         
         return jsonify({
             'success': True,
-            'summary': data
+            'summary': summary_data
         })
         
     except Exception as e:
@@ -1394,10 +1476,172 @@ def api_simple_financial_summary():
             'success': False,
             'message': f'Erro ao buscar dados financeiros: {str(e)}'
         }), 500
+    
+@app.route('/settings/<company_id>')
+@login_required
+def settings(company_id):    
+    settings_obj = Settings.query.filter_by(company_id=company_id).first()
+    
+    is_admin = current_user.type == "Admin"
+    
+    return render_template('settings.html', company_id=company_id, settings=settings_obj, is_admin=is_admin)
+
+@app.route('/get-settings/<company_id>')
+@login_required
+def get_settings(company_id):
+    try:
+        company = Company.query.get_or_404(company_id)
+        
+        settings = Settings.query.filter_by(company_id=company_id).first()
+        
+        if settings:
+            settings_data = {
+                'total_insurance_value': settings.total_insurance_value,
+                'rent_value': settings.rent_value,
+                'employee_insurance_value': settings.employee_insurance_value,
+                'preferred_salary_expense_day': settings.preferred_salary_expense_day
+            }
+            
+            return jsonify({
+                'success': True,
+                'settings': settings_data
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'settings': {
+                    'total_insurance_value': 0.0,
+                    'rent_value': 0.0,
+                    'employee_insurance_value': 0.0,
+                    'preferred_salary_expense_day': 1
+                }
+            })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao buscar configurações: {str(e)}'
+        }), 500
+
+@app.route('/save-settings', methods=['POST'])
+@login_required
+def save_settings():
+    try:
+        company_id = request.form.get('company_id')
+        
+        if not company_id:
+            return jsonify({
+                'success': False,
+                'message': 'ID da empresa não fornecido.'
+            }), 400
+            
+        settings = Settings.query.filter_by(company_id=company_id).first()
+        
+        if not settings:
+            settings = Settings(company_id=company_id)
+            db.session.add(settings)
+        
+        settings.total_insurance_value = float(request.form.get('total_insurance_value', 0.0))
+        settings.rent_value = float(request.form.get('rent_value', 0.0))
+        settings.employee_insurance_value = float(request.form.get('employee_insurance_value', 0.0))
+        settings.preferred_salary_expense_day = int(request.form.get('preferred_salary_expense_day', 1))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configurações salvas com sucesso!'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao salvar configurações: {str(e)}'
+        }), 500
+    
+def get_actual_salary_day(preferred_day, current_month, current_year):
+    if preferred_day == 99:
+        return calendar.monthrange(current_year, current_month)[1]
+    else:
+        return min(preferred_day, 28)
+
+@app.route('/get-info-settings')
+@login_required
+def get_info_settings():
+    try:
+        
+        info = Info.query.first()
+        
+        if info:
+            info_data = {
+                'payment_vps_date': info.payment_vps_date.strftime('%Y-%m-%d') if info.payment_vps_date else None,
+                'subscription_type_vps': info.subscription_type_vps
+            }
+            
+            return jsonify({
+                'success': True,
+                'info': info_data
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'info': {
+                    'payment_vps_date': None,
+                    'subscription_type_vps': 'mensal'
+                }
+            })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao buscar configurações: {str(e)}'
+        }), 500
+
+@app.route('/save-info-settings', methods=['POST'])
+@login_required
+def save_info_settings():
+    try:
+        if current_user.type != "Admin":
+            return jsonify({
+                'success': False,
+                'message': 'Apenas administradores podem salvar configurações.'
+            }), 403
+                
+        payment_vps_date = request.form.get('payment_vps_date')
+        subscription_type_vps = request.form.get('subscription_type_vps')
+        
+        if payment_vps_date:
+            payment_vps_date = datetime.strptime(payment_vps_date, '%Y-%m-%d').date()
+        
+        info = Info.query.first()
+        
+        if not info:
+            info = Info(payment_vps_date=payment_vps_date, 
+                       subscription_type_vps=subscription_type_vps)
+            db.session.add(info)
+        else:
+            info.payment_vps_date = payment_vps_date
+            info.subscription_type_vps = subscription_type_vps
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Configurações salvas com sucesso!'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Erro ao salvar configurações: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         install_core()
     
+    start_day_checker(app)
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -15,6 +15,26 @@
             </svg>
         </button>
         <div class="header-content">
+            <div class="month-selector">
+                <select id="month-select" class="month-select">
+                    <option value="1">Janeiro</option>
+                    <option value="2">Fevereiro</option>
+                    <option value="3">Março</option>
+                    <option value="4">Abril</option>
+                    <option value="5">Maio</option>
+                    <option value="6">Junho</option>
+                    <option value="7">Julho</option>
+                    <option value="8">Agosto</option>
+                    <option value="9">Setembro</option>
+                    <option value="10">Outubro</option>
+                    <option value="11">Novembro</option>
+                    <option value="12">Dezembro</option>
+                </select>
+                <select id="year-select" class="year-select">
+                    <!-- Years will be populated by JavaScript -->
+                </select>
+                <button id="filter-btn" class="filter-btn">Filtrar</button>
+            </div>
             <button class="logout-btn" onclick="handleLogout()">
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -119,7 +139,7 @@
 
             <div class="pagination">
                 {% if pagination.has_prev %}
-                    <a href="{{ url_for('expenses', company_id=company_id, page=pagination.prev_num) }}" class="pagination-btn">&laquo; Anterior</a>
+                    <a href="{{ url_for('simple_sales', company_id=company_id, page=pagination.prev_num, month=request.args.get('month'), year=request.args.get('year')) }}" class="pagination-btn">&laquo; Anterior</a>
                 {% else %}
                     <span class="pagination-btn disabled">&laquo; Anterior</span>
                 {% endif %}
@@ -129,7 +149,7 @@
                         {% if pagination.page == page_num %}
                             <span class="pagination-btn active">{{ page_num }}</span>
                         {% else %}
-                            <a href="{{ url_for('expenses', company_id=company_id, page=page_num) }}" class="pagination-btn">{{ page_num }}</a>
+                            <a href="{{ url_for('simple_sales', company_id=company_id, page=page_num, month=request.args.get('month'), year=request.args.get('year')) }}" class="pagination-btn">{{ page_num }}</a>
                         {% endif %}
                     {% else %}
                         <span class="pagination-ellipsis">…</span>
@@ -137,7 +157,7 @@
                 {% endfor %}
 
                 {% if pagination.has_next %}
-                    <a href="{{ url_for('expenses', company_id=company_id, page=pagination.next_num) }}" class="pagination-btn">Próximo &raquo;</a>
+                    <a href="{{ url_for('simple_sales', company_id=company_id, page=pagination.next_num, month=request.args.get('month'), year=request.args.get('year')) }}" class="pagination-btn">Próximo &raquo;</a>
                 {% else %}
                     <span class="pagination-btn disabled">Próximo &raquo;</span>
                 {% endif %}
