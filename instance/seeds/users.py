@@ -22,8 +22,8 @@ def create_basic_user():
     basic_user = User.query.filter_by(username="user").first()
     if not basic_user:
         user = User(
-            username="user",
-            password="user",  
+            username="cadete",
+            password="cadete",  
             name="Basic User",
             type="User",
             write_date=datetime.now()
