@@ -19,7 +19,7 @@ def create_admin():
         db.session.commit()
 
 def create_basic_user():
-    basic_user = User.query.filter_by(username="user").first()
+    basic_user = User.query.filter_by(username="cadete").first()
     if not basic_user:
         user = User(
             username="cadete",
