@@ -12,8 +12,12 @@ from instance.install_core import install_core
 from datetime import datetime, timedelta
 from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMonthlySummary, SimpleExpenses, Settings, Info
 from day_checker import start_day_checker
+from flask_migrate import Migrate
+from auto_migrate import run_auto_migration
+
 
 app = Flask(__name__)
+migrate = Migrate(app, db)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -1773,8 +1777,16 @@ def smodal():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        db_path = os.path.join(basedir, 'instance', 'test.db')
+        db_exists = os.path.isfile(db_path)
+        if not db_exists:
+            db.create_all()
+            
+        try:
+            run_auto_migration(app)
+        except Exception as e:
+            print("Continuing with initialization...")
+        
         install_core()
-    
-    start_day_checker(app)
+        start_day_checker(app)
     app.run(debug=True, host='0.0.0.0', port=5000)
