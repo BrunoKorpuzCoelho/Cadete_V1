@@ -85,7 +85,24 @@
             </div>
         </div>
     </main>
+
+    <div id="system-modal" class="system-modal">
+    <div class="system-modal-content">
+        <div class="system-modal-header">
+            <button class="system-modal-close" onclick="closeSystemModal()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="system-modal-body" id="system-modal-body">
+            <!-- Conteúdo dinâmico do modal será inserido aqui -->
+        </div>
+    </div>
+</div>
     
     <script src="/static/dashboard/js/main.js"></script>
+    <script src="/static/dashboard/js/modal_js_addition.js"></script>
 </body>
 </html>

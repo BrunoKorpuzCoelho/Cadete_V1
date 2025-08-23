@@ -58,7 +58,7 @@ function handleTypeChange() {
   const type = typeSelect.value
   
   if (type === "despesa") {
-    ivaRateSelect.value = "23" // Changed from "0" to "23"
+    ivaRateSelect.value = "23" 
   }
   
   updateIvaFieldVisibility()
@@ -67,12 +67,11 @@ function handleTypeChange() {
 }
 
 function updateIvaFieldVisibility() {
-  // Always show the IVA field regardless of transaction type
   if (!ivaRateGroup) return;
   ivaRateGroup.style.display = 'block';
   
   if (typeSelect.value === "despesa") {
-    ivaRateSelect.value = "23"; // Set default to 23% for expenses
+    ivaRateSelect.value = "23";
   }
 }
 

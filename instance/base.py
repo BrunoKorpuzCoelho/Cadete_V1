@@ -9,7 +9,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(25), unique=True)
     password = db.Column(db.String(255))  
     name = db.Column(db.String(100))  
-    type = db.Column(db.String(50), default="User")
+    type = db.Column(db.String(50))
     active = db.Column(db.Boolean, default=True)   
     is_locked = db.Column(db.Boolean, default=False)
     last_login = db.Column(db.DateTime)
@@ -17,13 +17,13 @@ class User(UserMixin, db.Model):
     create_date = db.Column(db.DateTime, default=db.func.current_timestamp())  
     write_date = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    def __init__(self, username, password, name, write_date, active=True, type="user"):
+    def __init__(self, username, password, name, write_date, type, active=True):
         self.username = username
         self.password = password
         self.name = name
         self.write_date = write_date
         self.active = active
-        self.user_type = type
+        self.type = type
 
 class Expenses(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -88,6 +88,7 @@ class MonthlySummary(db.Model):
     total_sales_without_vat = db.Column(db.Float, default=0.0)
     total_vat = db.Column(db.Float, default=0.0)
     total_costs = db.Column(db.Float, default=0.0)
+    total_costs_without_vat = db.Column(db.Float, default=0.0)
     profit = db.Column(db.Float, default=0.0)
     profit_without_vat = db.Column(db.Float, default=0.0)
     total_employee_salaries = db.Column(db.Float, default=0.0) 
@@ -103,7 +104,7 @@ class MonthlySummary(db.Model):
     )
     
     def __init__(self, month, year, company_id, total_sales=0.0, total_sales_without_vat=0.0, 
-                 total_vat=0.0, total_costs=0.0, profit=0.0, profit_without_vat=0.0):
+                 total_vat=0.0, total_costs=0.0, profit=0.0, profit_without_vat=0.0, total_costs_without_vat=0.0):
         self.month = month
         self.year = year
         self.company_id = company_id
@@ -113,6 +114,7 @@ class MonthlySummary(db.Model):
         self.total_costs = total_costs
         self.profit = profit
         self.profit_without_vat = profit_without_vat
+        self.total_costs_without_vat = total_costs_without_vat
 
 class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)

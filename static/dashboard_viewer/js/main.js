@@ -188,10 +188,10 @@ function resetFinancialCards() {
 
 function updateFinancialCards(data) {
   document.getElementById("revenue-value").textContent = formatCurrency(
-    data.total_sales || 0
+    data.total_sales_without_vat || 0  
   );
   document.getElementById("expenses-value").textContent = formatCurrency(
-    data.total_costs || 0
+    data.total_costs_without_vat || 0 
   );
   document.getElementById("profit-value").textContent = formatCurrency(
     data.profit_without_vat || 0
@@ -633,14 +633,13 @@ async function loadProfitDetails() {
 
       const totalRevenue = summary.total_sales_without_vat || 0;
       
-      // Calcular a soma total de seguros (seguros da empresa + seguros dos funcionários)
       const insuranceExpenses = (settings.total_insurance_value || 0) + (settings.employee_insurance_value || 0);
       
       const operationalExpenses =
-        (summary.total_costs || 0) -
+        (summary.total_costs_without_vat || 0) -
         (summary.total_employee_salaries || 0) -
         (settings.rent_value || 0) -
-        insuranceExpenses;  // Usar a soma total de seguros aqui
+        insuranceExpenses;
         
       const employeeExpenses = summary.total_employee_salaries || 0;
       const rentExpenses = settings.rent_value || 0;
@@ -650,6 +649,7 @@ async function loadProfitDetails() {
         employeeExpenses +
         insuranceExpenses +
         rentExpenses;
+      
       const profit = totalRevenue - totalExpenses;
 
       document.getElementById("modal-total-revenue").textContent =

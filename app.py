@@ -1,7 +1,7 @@
 import sys
 sys.dont_write_bytecode = True
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, logout_user, current_user, login_user
 from sqlalchemy import event
 import calendar
@@ -9,7 +9,7 @@ import os
 import base64
 from extensions import db, login_manager
 from instance.install_core import install_core
-from datetime import datetime
+from datetime import datetime, timedelta
 from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMonthlySummary, SimpleExpenses, Settings, Info
 from day_checker import start_day_checker
 
@@ -87,8 +87,11 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    if 'expiration_warning_shown' in session:
+        session.pop('expiration_warning_shown')
+    
     logout_user()
-    return redirect(url_for('login')) 
+    return redirect(url_for('login'))
 
 @app.route('/expenses/<int:company_id>')
 @login_required
@@ -155,36 +158,63 @@ def add_expense():
             return redirect(url_for('company'))
         
 def update_monthly_summary(expense):
-    transaction_date = expense.create_date
-    month = transaction_date.month
-    year = transaction_date.year
-    
-    summary = MonthlySummary.query.filter_by(
-        month=month, 
-        year=year,
-        company_id=expense.company_id
-    ).first()
-    
-    if not summary:
-        summary = MonthlySummary(
-            month=month,
+    try:
+        transaction_date = expense.create_date
+        month = transaction_date.month
+        year = transaction_date.year
+        
+        print(f"Updating monthly summary for: Month {month}, Year {year}, Company {expense.company_id}")
+        
+        summary = MonthlySummary.query.filter_by(
+            month=month, 
             year=year,
             company_id=expense.company_id
-        )
-        db.session.add(summary)
-    
-    if expense.transaction_type.lower() == 'ganho':
-        summary.total_sales += expense.gross_value
-        summary.total_sales_without_vat += expense.net_value
-        summary.total_vat += expense.iva_value
-    elif expense.transaction_type.lower() == 'despesa':
-        summary.total_costs += expense.gross_value
-        summary.total_vat -= expense.iva_value
-    
-    summary.profit = summary.total_sales - summary.total_costs
-    summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
-    
-    db.session.commit()
+        ).first()
+        
+        if not summary:
+            print(f"Creating new monthly summary")
+            summary = MonthlySummary(
+                month=month,
+                year=year,
+                company_id=expense.company_id,
+                total_sales=0.0,
+                total_sales_without_vat=0.0,
+                total_vat=0.0,
+                total_costs=0.0,
+                total_costs_without_vat=0.0,  # Inicializa explicitamente como 0.0
+                profit=0.0,
+                profit_without_vat=0.0
+            )
+            db.session.add(summary)
+        
+        # Garantir que todos os campos numéricos são inicializados
+        if summary.total_costs_without_vat is None:
+            summary.total_costs_without_vat = 0.0
+        if summary.total_sales_without_vat is None:
+            summary.total_sales_without_vat = 0.0
+        
+        if expense.transaction_type.lower() == 'ganho':
+            print(f"Processing gain: {expense.gross_value}")
+            summary.total_sales += expense.gross_value
+            summary.total_sales_without_vat += expense.net_value
+            summary.total_vat += expense.iva_value
+        elif expense.transaction_type.lower() == 'despesa':
+            print(f"Processing expense: {expense.gross_value}")
+            summary.total_costs += expense.gross_value
+            summary.total_costs_without_vat += expense.net_value
+            summary.total_vat -= expense.iva_value
+        
+        # Atualizar cálculos de lucro
+        summary.profit = summary.total_sales - summary.total_costs
+        summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs_without_vat
+        
+        print(f"Committing changes: profit={summary.profit}, profit_without_vat={summary.profit_without_vat}")
+        db.session.commit()
+        print("Monthly summary updated successfully")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating monthly summary: {str(e)}")
+        raise
     
 @app.route('/delete-expense/<int:expense_id>', methods=['POST'])
 @login_required
@@ -225,28 +255,44 @@ def delete_expense(expense_id):
         return jsonify({'success': False, 'message': str(e)}), 500
     
 def remove_from_monthly_summary(date, company_id, transaction_type, gross_value, net_value, iva_value):
-    month = date.month
-    year = date.year
-    
-    summary = MonthlySummary.query.filter_by(
-        month=month, 
-        year=year,
-        company_id=company_id
-    ).first()
-    
-    if summary:
-        if transaction_type.lower() == 'ganho':
-            summary.total_sales -= gross_value
-            summary.total_sales_without_vat -= net_value
-            summary.total_vat -= iva_value
-        elif transaction_type.lower() == 'despesa':
-            summary.total_costs -= gross_value
-            summary.total_vat += iva_value
+    try:
+        month = date.month
+        year = date.year
         
-        summary.profit = summary.total_sales - summary.total_costs
-        summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
+        print(f"Removing from monthly summary: Month {month}, Year {year}, Company {company_id}")
         
-        db.session.commit()
+        summary = MonthlySummary.query.filter_by(
+            month=month, 
+            year=year,
+            company_id=company_id
+        ).first()
+        
+        if summary:
+            # Garantir que todos os campos numéricos são inicializados
+            if summary.total_costs_without_vat is None:
+                summary.total_costs_without_vat = 0.0
+            if summary.total_sales_without_vat is None:
+                summary.total_sales_without_vat = 0.0
+                
+            if transaction_type.lower() == 'ganho':
+                summary.total_sales -= gross_value
+                summary.total_sales_without_vat -= net_value
+                summary.total_vat -= iva_value
+            elif transaction_type.lower() == 'despesa':
+                summary.total_costs -= gross_value
+                summary.total_costs_without_vat -= net_value
+                summary.total_vat += iva_value
+            
+            summary.profit = summary.total_sales - summary.total_costs
+            summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs_without_vat
+            
+            print(f"Committing changes: profit={summary.profit}, profit_without_vat={summary.profit_without_vat}")
+            db.session.commit()
+            print("Monthly summary updated successfully after removal")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error removing from monthly summary: {str(e)}")
+        raise
     
 @app.route('/get-expense/<int:expense_id>')
 @login_required
@@ -325,52 +371,80 @@ def update_expense(expense_id):
             return redirect(url_for('company'))
         
 def adjust_monthly_summary(expense, old_type, old_gross, old_net, old_iva):
-    transaction_date = expense.create_date
-    month = transaction_date.month
-    year = transaction_date.year
-    
-    summary = MonthlySummary.query.filter_by(
-        month=month, 
-        year=year,
-        company_id=expense.company_id
-    ).first()
-    
-    if not summary:
-        summary = MonthlySummary(
-            month=month,
+    try:
+        transaction_date = expense.create_date
+        month = transaction_date.month
+        year = transaction_date.year
+        
+        print(f"Adjusting monthly summary for: Month {month}, Year {year}, Company {expense.company_id}")
+        
+        summary = MonthlySummary.query.filter_by(
+            month=month, 
             year=year,
             company_id=expense.company_id
-        )
-        db.session.add(summary)
+        ).first()
         
-        if expense.transaction_type.lower() == 'ganho':
-            summary.total_sales += expense.gross_value
-            summary.total_sales_without_vat += expense.net_value
-            summary.total_vat += expense.iva_value
-        elif expense.transaction_type.lower() == 'despesa':
-            summary.total_costs += expense.gross_value
-            summary.total_vat -= expense.iva_value  
-    else:
-        if old_type.lower() == 'ganho':
-            summary.total_sales -= old_gross
-            summary.total_sales_without_vat -= old_net
-            summary.total_vat -= old_iva
-        elif old_type.lower() == 'despesa':
-            summary.total_costs -= old_gross
-            summary.total_vat += old_iva  
+        if not summary:
+            print(f"Creating new monthly summary during adjustment")
+            summary = MonthlySummary(
+                month=month,
+                year=year,
+                company_id=expense.company_id,
+                total_sales=0.0,
+                total_sales_without_vat=0.0,
+                total_vat=0.0,
+                total_costs=0.0,
+                total_costs_without_vat=0.0,  # Inicializa explicitamente como 0.0
+                profit=0.0,
+                profit_without_vat=0.0
+            )
+            db.session.add(summary)
+            
+            if expense.transaction_type.lower() == 'ganho':
+                summary.total_sales += expense.gross_value
+                summary.total_sales_without_vat += expense.net_value
+                summary.total_vat += expense.iva_value
+            elif expense.transaction_type.lower() == 'despesa':
+                summary.total_costs += expense.gross_value
+                summary.total_costs_without_vat += expense.net_value
+                summary.total_vat -= expense.iva_value  
+        else:
+            # Garantir que todos os campos numéricos são inicializados
+            if summary.total_costs_without_vat is None:
+                summary.total_costs_without_vat = 0.0
+            if summary.total_sales_without_vat is None:
+                summary.total_sales_without_vat = 0.0
+                
+            # Remover os valores antigos
+            if old_type.lower() == 'ganho':
+                summary.total_sales -= old_gross
+                summary.total_sales_without_vat -= old_net
+                summary.total_vat -= old_iva
+            elif old_type.lower() == 'despesa':
+                summary.total_costs -= old_gross
+                summary.total_costs_without_vat -= old_net
+                summary.total_vat += old_iva  
+            
+            # Adicionar os novos valores
+            if expense.transaction_type.lower() == 'ganho':
+                summary.total_sales += expense.gross_value
+                summary.total_sales_without_vat += expense.net_value
+                summary.total_vat += expense.iva_value
+            elif expense.transaction_type.lower() == 'despesa':
+                summary.total_costs += expense.gross_value
+                summary.total_costs_without_vat += expense.net_value
+                summary.total_vat -= expense.iva_value 
         
-        if expense.transaction_type.lower() == 'ganho':
-            summary.total_sales += expense.gross_value
-            summary.total_sales_without_vat += expense.net_value
-            summary.total_vat += expense.iva_value
-        elif expense.transaction_type.lower() == 'despesa':
-            summary.total_costs += expense.gross_value
-            summary.total_vat -= expense.iva_value 
-    
-    summary.profit = summary.total_sales - summary.total_costs
-    summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
-    
-    db.session.commit()
+        summary.profit = summary.total_sales - summary.total_costs
+        summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs_without_vat
+        
+        print(f"Committing changes: profit={summary.profit}, profit_without_vat={summary.profit_without_vat}")
+        db.session.commit()
+        print("Monthly summary adjusted successfully")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error adjusting monthly summary: {str(e)}")
+        raise
     
 @app.route('/employee/<int:company_id>')
 @login_required
@@ -848,6 +922,7 @@ def api_financial_summary():
                 'total_sales_without_vat': summary.total_sales_without_vat,
                 'total_vat': summary.total_vat,
                 'total_costs': summary.total_costs,
+                'total_costs_without_vat': summary.total_costs_without_vat, 
                 'profit': summary.profit,
                 'profit_without_vat': summary.profit_without_vat,
                 'total_employee_salaries': summary.total_employee_salaries,
@@ -1642,6 +1717,59 @@ def save_info_settings():
             'success': False,
             'message': f'Erro ao salvar configurações: {str(e)}'
         }), 500
+    
+@app.route('/smodal')
+@login_required
+def smodal():
+    try:
+        if session.get('expiration_warning_shown', False):
+            return jsonify({'show': False})
+        
+        info = Info.query.first()
+        
+        if not info or not info.payment_vps_date:
+            return jsonify({'show': False})
+        
+        today = datetime.now().date()
+        payment_date = info.payment_vps_date
+        days_remaining = (payment_date - today).days
+        
+        if days_remaining <= 30:
+            session['expiration_warning_shown'] = True
+            
+            if days_remaining >= 0:
+                return jsonify({
+                    'show': True,
+                    'title': 'Aviso de Expiração',
+                    'type': 'warning',
+                    'content': f'''
+                        <div class="modal-warning">
+                            <p><strong>A sua subscrição expira em {days_remaining} dias.</strong></p>
+                            <p>Para garantir a continuidade do acesso aos seus dados e funcionalidades, 
+                            por favor entre em contacto com o nosso suporte técnico.</p>
+                            <p>Telefone: +351 965 567 916</p>
+                        </div>
+                    '''
+                })
+            else:
+                return jsonify({
+                    'show': True,
+                    'title': 'Subscrição Expirada',
+                    'type': 'error',
+                    'content': f'''
+                        <div class="modal-error">
+                            <p><strong>A sua subscrição expirou há {abs(days_remaining)} dias.</strong></p>
+                            <p>O acesso aos seus dados e funcionalidades pode ser interrompido a qualquer momento.</p>
+                            <p>Telefone: +351 965 567 916</p>
+                        </div>
+                    '''
+                })
+        
+        return jsonify({'show': False})
+        
+    except Exception as e:
+        print(f"Erro ao verificar data de expiração: {str(e)}")
+        return jsonify({'show': False})
 
 if __name__ == '__main__':
     with app.app_context():
