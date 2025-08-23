@@ -58,7 +58,7 @@ function handleTypeChange() {
   const type = typeSelect.value
   
   if (type === "despesa") {
-    ivaRateSelect.value = "0"
+    ivaRateSelect.value = "23" // Changed from "0" to "23"
   }
   
   updateIvaFieldVisibility()
@@ -67,18 +67,12 @@ function handleTypeChange() {
 }
 
 function updateIvaFieldVisibility() {
-  const type = typeSelect.value;
+  // Always show the IVA field regardless of transaction type
+  if (!ivaRateGroup) return;
+  ivaRateGroup.style.display = 'block';
   
-  if (!ivaRateGroup) return; 
-  
-  if (type === "despesa" && userType !== 'Admin') {
-    ivaRateGroup.style.display = 'none';
-  } else {
-    ivaRateGroup.style.display = 'block';
-  }
-  
-  if (type === "despesa") {
-    ivaRateSelect.value = "0";
+  if (typeSelect.value === "despesa") {
+    ivaRateSelect.value = "23"; // Set default to 23% for expenses
   }
 }
 
@@ -96,7 +90,7 @@ function updateCalculatedValues() {
   let ivaValue = 0
   let netValue = grossValue
 
-  if (type === "ganho" && ivaRate > 0) {
+  if (ivaRate > 0) {
     netValue = grossValue / (1 + (ivaRate / 100))
     ivaValue = grossValue - netValue
   }
@@ -129,8 +123,7 @@ function handleSubmit(e) {
   let ivaValue = 0
   let netValue = grossValue
 
-  if (type === "ganho" && ivaRate > 0) {
-    // Usar a mesma fórmula de updateCalculatedValues
+  if (ivaRate > 0) {
     netValue = grossValue / (1 + (ivaRate / 100))
     ivaValue = grossValue - netValue
   }

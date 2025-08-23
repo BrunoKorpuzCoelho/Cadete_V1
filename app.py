@@ -179,6 +179,7 @@ def update_monthly_summary(expense):
         summary.total_vat += expense.iva_value
     elif expense.transaction_type.lower() == 'despesa':
         summary.total_costs += expense.gross_value
+        summary.total_vat -= expense.iva_value
     
     summary.profit = summary.total_sales - summary.total_costs
     summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
@@ -240,6 +241,7 @@ def remove_from_monthly_summary(date, company_id, transaction_type, gross_value,
             summary.total_vat -= iva_value
         elif transaction_type.lower() == 'despesa':
             summary.total_costs -= gross_value
+            summary.total_vat += iva_value
         
         summary.profit = summary.total_sales - summary.total_costs
         summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
@@ -347,6 +349,7 @@ def adjust_monthly_summary(expense, old_type, old_gross, old_net, old_iva):
             summary.total_vat += expense.iva_value
         elif expense.transaction_type.lower() == 'despesa':
             summary.total_costs += expense.gross_value
+            summary.total_vat -= expense.iva_value  
     else:
         if old_type.lower() == 'ganho':
             summary.total_sales -= old_gross
@@ -354,6 +357,7 @@ def adjust_monthly_summary(expense, old_type, old_gross, old_net, old_iva):
             summary.total_vat -= old_iva
         elif old_type.lower() == 'despesa':
             summary.total_costs -= old_gross
+            summary.total_vat += old_iva  
         
         if expense.transaction_type.lower() == 'ganho':
             summary.total_sales += expense.gross_value
@@ -361,6 +365,7 @@ def adjust_monthly_summary(expense, old_type, old_gross, old_net, old_iva):
             summary.total_vat += expense.iva_value
         elif expense.transaction_type.lower() == 'despesa':
             summary.total_costs += expense.gross_value
+            summary.total_vat -= expense.iva_value 
     
     summary.profit = summary.total_sales - summary.total_costs
     summary.profit_without_vat = summary.total_sales_without_vat - summary.total_costs
