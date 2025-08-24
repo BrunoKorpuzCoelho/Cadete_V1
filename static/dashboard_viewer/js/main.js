@@ -188,7 +188,7 @@ function resetFinancialCards() {
 
 function updateFinancialCards(data) {
   document.getElementById("revenue-value").textContent = formatCurrency(
-    data.total_sales_without_vat || 0  
+    data.total_sales || 0  
   );
   document.getElementById("expenses-value").textContent = formatCurrency(
     data.total_costs_without_vat || 0 
