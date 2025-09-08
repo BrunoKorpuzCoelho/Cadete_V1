@@ -215,28 +215,36 @@ def process_company_rent(company, settings, current_date, monthly_summary, db):
         return
     
     rent_value = settings.rent_value
+    iva_rate = 23.0  # Taxa de IVA de 23% para renda
+    
+    # Cálculo correto do IVA e valor líquido
+    net_value = round(rent_value / 1.23, 2)  # Valor líquido (sem IVA)
+    iva_value = round(rent_value - net_value, 2)  # Valor do IVA
     
     new_expense = Expenses(
         transaction_type="despesa",
         description="Renda mensal do espaço",
         gross_value=rent_value,
-        iva_rate=0,
-        iva_value=0,
-        net_value=rent_value,
+        iva_rate=iva_rate,
+        iva_value=iva_value,
+        net_value=net_value,
         user_id=company.user_id,  
         company_id=company.id
     )
     
     db.session.add(new_expense)
     
+    # Atualizar os totais do resumo mensal
     monthly_summary.total_costs += rent_value
+    monthly_summary.total_costs_without_vat += net_value
+    monthly_summary.total_vat -= iva_value  # Subtrair IVA (pois é uma despesa)
     
     monthly_summary.profit = monthly_summary.total_sales - monthly_summary.total_costs
-    monthly_summary.profit_without_vat = monthly_summary.total_sales_without_vat - monthly_summary.total_costs
+    monthly_summary.profit_without_vat = monthly_summary.total_sales_without_vat - monthly_summary.total_costs_without_vat
     
     try:
         db.session.commit()
-        logger.info(f"Registrada renda mensal para empresa {company.id}: {rent_value}€")
+        logger.info(f"Registrada renda mensal para empresa {company.id}: {rent_value}€ (IVA: {iva_value}€)")
     except Exception as e:
         db.session.rollback()
         logger.error(f"Erro ao registrar renda mensal: {str(e)}")
