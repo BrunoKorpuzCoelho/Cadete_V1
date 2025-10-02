@@ -21,7 +21,7 @@ def print_current_day_loop(app=None):
         if app:
             check_and_process_salaries(app)
         
-        time.sleep(10) 
+        time.sleep(82800) 
 
 def start_day_checker(app=None):
     day_checker_thread = threading.Thread(target=print_current_day_loop, args=(app,))
