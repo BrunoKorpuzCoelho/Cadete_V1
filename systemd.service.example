@@ -1,0 +1,45 @@
+# Systemd Service File for Cadete Application
+# =============================================
+#
+# Copy this file to /etc/systemd/system/cadete.service
+# Update the paths and user/group as needed
+#
+# Commands:
+#   Start: sudo systemctl start cadete
+#   Stop: sudo systemctl stop cadete
+#   Restart: sudo systemctl restart cadete
+#   Enable on boot: sudo systemctl enable cadete
+#   View logs: sudo journalctl -u cadete -f
+
+[Unit]
+Description=Cadete Flask Application
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/Cadete_V1
+Environment="PATH=/path/to/Cadete_V1/venv/bin"
+
+# Load environment variables from .env file
+EnvironmentFile=/path/to/Cadete_V1/.env
+
+# Start Gunicorn
+ExecStart=/path/to/Cadete_V1/venv/bin/gunicorn -c gunicorn_config.py wsgi:app
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cadete
+
+[Install]
+WantedBy=multi-user.target

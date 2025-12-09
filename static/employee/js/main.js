@@ -124,8 +124,13 @@ async function addEmployee() {
 async function deleteEmployee(id) {
   if (confirm("Tem certeza que deseja remover este empregado?")) {
     try {
+      const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+      const formData = new FormData();
+      formData.append('csrf_token', csrfToken);
+
       const response = await fetch(`/delete-employee/${id}`, {
-        method: 'POST'
+        method: 'POST',
+        body: formData
       })
       
       const result = await response.json()
@@ -145,12 +150,14 @@ async function deleteEmployee(id) {
 async function archiveEmployee(id, currentStatus) {
   const action = currentStatus ? "arquivar" : "reativar";
   const actionPast = currentStatus ? "arquivado" : "reativado";
-  
+
   if (confirm(`Tem certeza que deseja ${action} este empregado?`)) {
     try {
+      const csrfToken = document.querySelector('input[name="csrf_token"]').value;
       const formData = new FormData();
       formData.append('is_active', !currentStatus);
-      
+      formData.append('csrf_token', csrfToken);
+
       if (companyId) {
         formData.append('company_id', companyId);
       }

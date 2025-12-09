@@ -39,6 +39,7 @@
                 <h2 class="settings-title">Configurações da Empresa</h2>
                 
                 <form id="settingsForm" action="/save-settings" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="totalInsuranceValue">Valor de Outros Seguros (€)</label>
                         <input type="number" id="totalInsuranceValue" name="total_insurance_value" placeholder="0.00" step="0.01" value="0.00">
@@ -105,6 +106,7 @@
             </div>
             <div class="modal-body">
                 <form id="infoForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="paymentDate">Data de Pagamento VPS</label>
                         <input type="date" id="paymentDate" name="payment_vps_date">

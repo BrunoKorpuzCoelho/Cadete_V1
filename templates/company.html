@@ -79,6 +79,7 @@
             </div>
             
             <form class="modal-form" id="companyForm" action="/add-company" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="companyName" class="form-label">Nome da Empresa *</label>
                     <input type="text" id="companyName" name="name" class="form-input" required>

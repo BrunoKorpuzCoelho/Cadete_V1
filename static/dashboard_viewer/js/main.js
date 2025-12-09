@@ -566,8 +566,13 @@ function editTransaction(id) {
 
 function deleteTransaction(id) {
   if (confirm("Tem certeza que deseja excluir esta transação?")) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+
     fetch(`/delete-expense/${id}`, {
       method: "POST",
+      body: formData
     })
       .then((response) => response.json())
       .then((data) => {

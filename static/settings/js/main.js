@@ -194,10 +194,12 @@ async function saveInfoSettings() {
   try {
     const paymentDate = document.getElementById("paymentDate").value;
     const subscriptionType = document.getElementById("subscriptionType").value;
+    const csrfToken = document.querySelector('#infoForm input[name="csrf_token"]').value;
 
     const formData = new FormData();
     formData.append("payment_vps_date", paymentDate);
     formData.append("subscription_type_vps", subscriptionType);
+    formData.append("csrf_token", csrfToken);
 
     const response = await fetch("/save-info-settings", {
       method: "POST",

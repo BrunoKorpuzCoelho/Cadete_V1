@@ -293,13 +293,13 @@ function deleteTransaction(id) {
   
   if (confirm("Tem certeza que deseja eliminar esta transação?")) {
     const currentPage = new URLSearchParams(window.location.search).get('page') || 1;
-    
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    const formData = new FormData();
+    formData.append('csrf_token', csrfToken);
+
     fetch(`/delete-simple-expense/${id}`, {
       method: 'POST',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Content-Type': 'application/json'
-      }
+      body: formData
     })
     .then(response => {
       if (response.ok) {

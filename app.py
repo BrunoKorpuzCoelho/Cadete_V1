@@ -3,6 +3,9 @@ sys.dont_write_bytecode = True
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, logout_user, current_user, login_user
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy import event
 import calendar
 import os
@@ -14,15 +17,25 @@ from instance.base import Expenses, Employee, Company, MonthlySummary, SimpleMon
 from day_checker import start_day_checker
 from flask_migrate import Migrate
 from auto_migrate import run_auto_migration
+from config import get_config
 
 
 app = Flask(__name__)
+
+# Load configuration from config.py
+app.config.from_object(get_config())
+
+# Initialize extensions
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=app.config.get('RATELIMIT_STORAGE_URL', 'memory://')
+)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(basedir, 'instance', 'test.db')}"
-app.config["SECRET_KEY"] = os.urandom(24)
 
 db.init_app(app)
 login_manager.init_app(app)
@@ -47,45 +60,61 @@ def main():
     return render_template("login.html")
 
 @app.route('/login', methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def login():
+    """
+    Secure login endpoint with rate limiting and generic error messages.
+    Rate limit: 5 attempts per minute per IP address.
+    """
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-        
+
+        # Validate input
+        if not username or not password:
+            flash("❌ Credenciais inválidas.", "error")
+            return render_template("login.html")
+
         from instance.base import User
         user = User.query.filter_by(username=username).first()
 
+        # Use generic error messages to avoid revealing user existence
         if not user:
-            flash("❌ Usuário não encontrado!", "error")
+            flash("❌ Credenciais inválidas.", "error")
             return render_template("login.html")
-        
-        elif user.is_locked:
-            flash("🚫 Usuário bloqueado! Entre em contato com o suporte.", "error")
+
+        # Check if account is locked
+        if user.is_locked:
+            flash("🚫 Conta bloqueada. Entre em contato com o suporte.", "error")
             return render_template("login.html")
-        
-        elif user.password != password:
+
+        # Verify password using secure hash comparison
+        if not user.check_password(password):
+            # Track failed login attempts
             if user.failed_login_attempts is None:
                 user.failed_login_attempts = 0
-            
+
             user.failed_login_attempts += 1
 
-            if user.failed_login_attempts >= 3:
+            # Lock account after 5 failed attempts (increased from 3 for better UX)
+            if user.failed_login_attempts >= 5:
                 user.is_locked = True
-                flash(f"❌ Muitas tentativas falhas! Usuário bloqueado.", "error")
+                flash("❌ Muitas tentativas falhas. Conta bloqueada.", "error")
             else:
-                flash(f"❌ Senha incorreta! Tentativa {user.failed_login_attempts}/3", "error")
-            
+                # Generic error message - don't reveal attempt count
+                flash("❌ Credenciais inválidas.", "error")
+
             db.session.commit()
             return render_template("login.html")
-        
-        else:
-            user.failed_login_attempts = 0
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            login_user(user)
-            return redirect(url_for("company"))
-    
+
+        # Successful login
+        user.failed_login_attempts = 0
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+
+        login_user(user)
+        return redirect(url_for("company"))
+
     return render_template("login.html")
 
 @app.route('/logout')
@@ -1781,12 +1810,27 @@ if __name__ == '__main__':
         db_exists = os.path.isfile(db_path)
         if not db_exists:
             db.create_all()
-            
+
         try:
             run_auto_migration(app)
         except Exception as e:
             print("Continuing with initialization...")
-        
+
         install_core()
         start_day_checker(app)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    # Get configuration from environment
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    port = int(os.environ.get('FLASK_PORT', 5000))
+
+    # Security warning for debug mode
+    if debug_mode:
+        print("\n" + "=" * 60)
+        print("⚠️  WARNING: Running in DEBUG mode!")
+        print("=" * 60)
+        print("Debug mode should NEVER be enabled in production.")
+        print("Set FLASK_DEBUG=False in your .env file for production.")
+        print("=" * 60 + "\n")
+
+    app.run(debug=debug_mode, host=host, port=port)
