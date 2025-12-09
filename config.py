@@ -30,15 +30,16 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Session Configuration
+    # Session Configuration (HTTP only - no SSL required)
     PERMANENT_SESSION_LIFETIME = timedelta(seconds=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600)))
-    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
-    SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
-    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    SESSION_COOKIE_SECURE = False  # Always False - HTTP only environment
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
 
-    # CSRF Protection
+    # CSRF Protection (configured for HTTP)
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None  # No time limit for CSRF tokens
+    WTF_CSRF_SSL_STRICT = False  # Allow CSRF tokens over HTTP
 
     # Rate Limiting Configuration
     RATELIMIT_STORAGE_URL = os.environ.get('RATELIMIT_STORAGE_URL', 'memory://')
@@ -56,15 +57,13 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production configuration"""
+    """Production configuration - HTTP only"""
     DEBUG = False
     FLASK_ENV = 'production'
 
-    # Enforce HTTPS in production
-    SESSION_COOKIE_SECURE = True
-
-    # Additional production security settings
-    PREFERRED_URL_SCHEME = 'https'
+    # HTTP only - no SSL/HTTPS required
+    SESSION_COOKIE_SECURE = False
+    PREFERRED_URL_SCHEME = 'http'
 
 
 class TestingConfig(Config):
